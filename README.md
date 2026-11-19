@@ -42,6 +42,14 @@ chmod +x auto/*.sh scripts/*.sh
 
 The ISO should appear in the project root. Check the build log and verify the ISO checksum before writing it to USB.
 
+## Automated validation
+
+GitHub Actions runs on Debian 13 and validates shell and Python syntax, desktop
+metadata, `live-build` configuration, every listed Debian package, and a build
+and installation of the Control Center `.deb`. It does not build an ISO on every
+push. No completed ISO build or hardware boot test is claimed until recorded in
+`docs/BUILD-STATUS.md`.
+
 ## Test safely
 
 1. First test in a disposable test machine or spare PC (no VM is required).

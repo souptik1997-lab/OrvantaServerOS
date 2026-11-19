@@ -8,13 +8,12 @@ lb config noauto \
     --mode debian \
     --distribution trixie \
     --architectures amd64 \
-    --binary-image iso-hybrid \
+    --binary-images iso-hybrid \
     --archive-areas "main contrib non-free-firmware" \
     --apt-recommends true \
     --apt-secure true \
     --apt-indices true \
     --bootloaders "grub-pc grub-efi" \
-    --uefi-secure-boot auto \
     --initsystem systemd \
     --debian-installer none \
     --iso-application "ORVANTA OS" \

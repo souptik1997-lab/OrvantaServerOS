@@ -2,7 +2,7 @@ Source: orvanta-control-center
 Section: admin
 Priority: optional
 Maintainer: ORVANTA Project <maintainers@example.invalid>
-Build-Depends: debhelper-compat (= 13)
+Build-Depends: debhelper-compat (= 13), python3-pyside6.qtwidgets
 Standards-Version: 4.7.0
 Rules-Requires-Root: no
 

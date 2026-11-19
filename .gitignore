@@ -1,0 +1,14 @@
+*.buildinfo
+*.changes
+*.deb
+*.dsc
+*.build
+*.tar.*
+*.iso
+build.log
+config/
+cache/
+chroot/
+binary/
+local/
+__pycache__/
