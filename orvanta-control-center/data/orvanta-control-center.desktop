@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=ORVANTA Control Center
+Comment=View ORVANTA system information
+Exec=orvanta-control-center
+Icon=orvanta
+Terminal=false
+Categories=System;Settings;
+StartupNotify=true

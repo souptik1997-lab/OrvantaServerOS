@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+# 'noauto' prevents live-build from re-invoking this auto/build wrapper.
+lb build noauto "${@}" 2>&1 | tee build.log

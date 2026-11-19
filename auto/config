@@ -1,0 +1,25 @@
+#!/bin/sh
+set -eu
+
+# Canonical configuration for ORVANTA Foundation 0.1.
+# Keep this file as the single source of truth for lb config options.
+
+lb config noauto \
+    --mode debian \
+    --distribution trixie \
+    --architectures amd64 \
+    --binary-image iso-hybrid \
+    --archive-areas "main contrib non-free-firmware" \
+    --apt-recommends true \
+    --apt-secure true \
+    --apt-indices true \
+    --bootloaders "grub-pc grub-efi" \
+    --uefi-secure-boot auto \
+    --initsystem systemd \
+    --debian-installer none \
+    --iso-application "ORVANTA OS" \
+    --iso-publisher "ORVANTA Project" \
+    --iso-volume "ORVANTA_0_1" \
+    --image-name "orvanta-0.1-amd64" \
+    --bootappend-live "boot=live components hostname=orvanta username=orvanta locales=en_US.UTF-8 keyboard-layouts=us" \
+    "${@}"

@@ -1,0 +1,48 @@
+# Desktop and core utilities
+task-kde-desktop
+sddm
+dolphin
+konsole
+systemsettings
+plasma-nm
+firefox-esr
+network-manager
+sudo
+curl
+wget
+git
+vim-tiny
+less
+bash-completion
+
+# Firmware support for common x86-64 hardware
+firmware-linux
+firmware-iwlwifi
+firmware-realtek
+
+# Security baseline
+apparmor
+apparmor-utils
+nftables
+unattended-upgrades
+needrestart
+cryptsetup
+
+# Server and storage management
+cockpit
+cockpit-storaged
+samba
+smartmontools
+rsync
+restic
+
+# Container runtime (initial development profile)
+docker.io
+docker-compose
+
+# Hardware and diagnostics
+pciutils
+usbutils
+lshw
+dmidecode
+nvme-cli

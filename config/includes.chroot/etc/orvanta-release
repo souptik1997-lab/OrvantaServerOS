@@ -1,0 +1,5 @@
+ORVANTA OS
+Release: 0.1 (Foundation)
+Base: Debian GNU/Linux 13 (Trixie)
+Architecture: amd64
+Channel: development

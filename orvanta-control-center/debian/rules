@@ -1,0 +1,11 @@
+#!/usr/bin/make -f
+%:
+	dh $@
+
+override_dh_auto_build:
+	# Python application; no compilation required.
+
+override_dh_auto_install:
+	install -D -m 0755 src/orvanta_control_center.py debian/orvanta-control-center/usr/bin/orvanta-control-center
+	install -D -m 0644 data/orvanta-control-center.desktop debian/orvanta-control-center/usr/share/applications/orvanta-control-center.desktop
+	install -D -m 0644 data/orvanta.svg debian/orvanta-control-center/usr/share/icons/hicolor/scalable/apps/orvanta.svg
