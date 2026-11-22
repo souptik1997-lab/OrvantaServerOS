@@ -12,7 +12,11 @@ permissions:
 jobs:
   static-and-package:
     runs-on: ubuntu-24.04
-    container: debian:trixie
+    container:
+      image: debian:trixie
+      # NET_ADMIN only for the container's own network namespace, so "nft -c"
+      # can validate the live firewall ruleset.
+      options: --cap-add=NET_ADMIN
     steps:
       - uses: actions/checkout@v4
       - name: Install validation dependencies
@@ -22,7 +26,9 @@ jobs:
             build-essential ca-certificates debhelper debian-archive-keyring devscripts \
             desktop-file-utils git lintian live-build nftables python3 \
             python3-pyside6.qtwidgets shellcheck
-      - name: Static checks (shell, Python, unit tests, desktop entry, live-build config)
+      - name: Static checks (shell, Python, unit tests, desktop entry, firewall, live-build config)
+        env:
+          ORVANTA_REQUIRE_NFT: "1"
         run: ./scripts/validate.sh
       - name: Verify Debian 13 package availability (main contrib non-free-firmware)
         run: ./scripts/check-packages.sh

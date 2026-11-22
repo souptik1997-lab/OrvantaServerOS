@@ -34,10 +34,16 @@ echo "== Desktop entry"
 desktop-file-validate orvanta-control-center/data/orvanta-control-center.desktop
 
 echo "== nftables ruleset syntax"
-if command -v nft >/dev/null 2>&1 && [ "$(id -u)" -eq 0 ]; then
+# "nft -c" needs CAP_NET_ADMIN (it queries the kernel). CI grants it to the
+# container and sets ORVANTA_REQUIRE_NFT=1 so the check cannot be skipped there.
+if command -v nft >/dev/null 2>&1 && nft list tables >/dev/null 2>&1; then
     nft -c -f config/includes.chroot/etc/nftables.conf
+    echo "ruleset OK"
+elif [ "${ORVANTA_REQUIRE_NFT:-0}" = 1 ]; then
+    echo "ERROR: nft check required but nft is missing or lacks CAP_NET_ADMIN"
+    exit 1
 else
-    echo "skipped (needs root and nft)"
+    echo "skipped (needs nft and CAP_NET_ADMIN, e.g. run as root)"
 fi
 
 echo "== live-build configuration"
