@@ -33,35 +33,67 @@ Do not run the build on the target server that contains important data. The buil
 
 ```bash
 sudo apt update
-sudo apt install -y live-build debootstrap xorriso squashfs-tools \
-  grub-pc-bin grub-efi-amd64-bin mtools dosfstools
+sudo apt install -y git live-build debootstrap xorriso squashfs-tools \
+  grub-pc-bin grub-efi-amd64-bin mtools dosfstools build-essential debhelper
 
-chmod +x auto/*.sh scripts/*.sh
+git clone https://github.com/souptik1997-lab/OrvantaServerOS
+cd OrvantaServerOS
 ./scripts/build.sh
 ```
 
-The ISO should appear in the project root. Check the build log and verify the ISO checksum before writing it to USB.
+`scripts/build.sh` builds the Control Center `.deb`, places it in
+`config/packages.chroot/` so it is installed into the image, and runs
+`lb clean`, `lb config` and `lb build` with `SOURCE_DATE_EPOCH` set to the last
+commit time. Outputs in the project root:
+
+- `orvanta-0.1-amd64.hybrid.iso` and `orvanta-0.1-amd64.hybrid.iso.sha256`
+- `orvanta-0.1-amd64.packages` — every package and version in the image
+- `build.log` — the full live-build log
+
+Check the checksum before writing the ISO to USB. `./scripts/clean.sh` removes
+all build state. On Windows, see `windows/README-WINDOWS.md` (WSL2).
+
+## Live-session security defaults
+
+- nftables enabled with `/etc/nftables.conf`: inbound traffic dropped except
+  replies, loopback, essential ICMP/ICMPv6 and DHCPv6.
+- Cockpit, Samba, Docker and containerd are installed but **masked** in the
+  live session. Enable them explicitly (`systemctl unmask …`) and open the
+  firewall only on a trusted network.
+- The live user (`orvanta`) has live-config's well-known password and
+  passwordless sudo, as in every Debian live image. Never leave the live
+  session connected to an untrusted network.
+- Automatic updates are off in the live session.
 
 ## Automated validation
 
-GitHub Actions runs on Debian 13 and validates shell and Python syntax, desktop
-metadata, `live-build` configuration, every listed Debian package, and a build
-and installation of the Control Center `.deb`. It does not build an ISO on every
-push. No completed ISO build or hardware boot test is claimed until recorded in
-`docs/BUILD-STATUS.md`.
+Run locally on Debian 13 (no root needed except for the `nft -c` check):
+
+```bash
+./scripts/validate.sh        # shell, Python, unit tests, desktop entry, firewall, lb config
+./scripts/check-packages.sh  # every listed package installable on trixie amd64
+```
+
+GitHub Actions (`.github/workflows/validate.yml`) runs both scripts in a
+`debian:trixie` container, then builds the Control Center package, runs
+lintian and installs and launches it. A full ISO build is available as a
+workflow (`build-iso.yml`), which also runs on pull requests that change build
+inputs. Verified results are recorded in
+`docs/BUILD-STATUS.md` and `docs/REVIEW-2026-11-22.md`; nothing is claimed
+there until it has actually run.
 
 ## Test safely
 
 1. First test in a disposable test machine or spare PC (no VM is required).
 2. Boot from USB using UEFI.
 3. Check KDE, networking, audio, display scaling, Intel Wi-Fi/Ethernet, USB and storage.
-4. Confirm the live session does not expose remote administration services unexpectedly.
+4. Confirm no remote administration services listen: `sudo ss -tlnp` and `sudo nft list ruleset`.
 5. Do not use this prototype as a production server or store important data on it.
 
 ## Current limitations
 
 - This is a live ISO prototype; it is not yet a polished installed-system installer.
-- ORVANTA branding is minimal and the custom Control Center has not been implemented.
+- ORVANTA branding is minimal; the Control Center is a read-only prototype.
 - Automatic updates are not activated in the live session. The installed-system update policy will be implemented and tested separately.
 - No custom kernel, custom init system or custom package manager is being introduced.
 - No update rollback guarantee exists yet.
@@ -74,7 +106,10 @@ push. No completed ISO build or hardware boot test is claimed until recorded in
 - `auto/build` — build entry point with logging
 - `config/package-lists/` — package selection
 - `config/includes.chroot/` — files included in the live filesystem
-- `scripts/` — host checks, build and clean helpers
+- `config/hooks/normal/` — ORVANTA chroot hooks (live-session hardening)
+- `scripts/` — host checks, build, clean, validation and package checks
+- `orvanta-control-center/` — read-only Control Center and its Debian packaging
+- `tests/` — unit tests
 - `docs/` — architecture and release notes
 
 ## Next milestones
