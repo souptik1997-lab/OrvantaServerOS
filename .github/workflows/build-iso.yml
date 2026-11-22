@@ -72,10 +72,16 @@ jobs:
           test -s "$iso"
           sha256sum -c "$iso.sha256"
           size=$(stat -c %s "$iso")
-          pkgs=$(wc -l < orvanta-0.1-amd64.packages)
-          cc=$(grep -E '^orvanta-control-center[[:space:]]' orvanta-0.1-amd64.packages || echo 'orvanta-control-center MISSING')
-          kernel=$(grep -E '^linux-image-[0-9]' orvanta-0.1-amd64.packages | head -1)
-          echo "::notice title=ISO built::$iso size=$size bytes; $(cut -d' ' -f1 "$iso.sha256") sha256; $pkgs packages; $cc; $kernel"
+          manifest=$(ls ./*.packages 2>/dev/null | head -1)
+          if [ -n "$manifest" ]; then
+            pkgs="$(wc -l < "$manifest") packages in $manifest"
+            cc=$(grep -E '^orvanta-control-center[[:space:]]' "$manifest" || echo 'orvanta-control-center MISSING')
+            kernel=$(grep -E '^linux-image-[0-9]' "$manifest" | head -1)
+          else
+            pkgs="no .packages manifest found"; cc=""; kernel=""
+          fi
+          ls -la ./*.iso* ./*.packages 2>/dev/null || true
+          echo "::notice title=ISO built::$iso size=$size bytes; $(cut -d' ' -f1 "$iso.sha256") sha256; $pkgs; $cc; $kernel"
 
       # Annotations are readable without signing in (unlike raw job logs), so a
       # failure can be diagnosed from the public API.
@@ -101,7 +107,7 @@ jobs:
           path: |
             orvanta-0.1-amd64.hybrid.iso
             orvanta-0.1-amd64.hybrid.iso.sha256
-            orvanta-0.1-amd64.packages
+            ./*.packages
           retention-days: 7
           compression-level: 0
 

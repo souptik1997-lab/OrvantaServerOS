@@ -38,7 +38,9 @@ sudo lb clean
 sudo lb config
 sudo env SOURCE_DATE_EPOCH="$SOURCE_DATE_EPOCH" lb build
 
-iso="orvanta-0.1-amd64.hybrid.iso"
+# live-build names the image <LB_IMAGE_NAME>-<arch>.hybrid.iso (see auto/config).
+image_name="$(sed -n 's/^LB_IMAGE_NAME="\(.*\)"$/\1/p' config/common)"
+iso="${image_name:?LB_IMAGE_NAME not found in config/common}-amd64.hybrid.iso"
 if [ ! -s "$iso" ]; then
     echo "ERROR: build finished but $iso was not produced. See build.log."
     exit 1
