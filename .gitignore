@@ -7,6 +7,10 @@
 *.tar.*
 *.iso
 *.iso.sha256
+ci-build.log
+summary.txt
+ci-build.log
+summary.txt
 *.contents
 *.files
 *.packages

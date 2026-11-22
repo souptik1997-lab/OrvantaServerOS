@@ -38,26 +38,44 @@ jobs:
           df -h /
 
       - name: Build ISO in Debian 13 container
+        # bash on Actions runs with -o pipefail, so tee does not hide a failure.
         run: |
           docker run --rm --privileged \
             -v "$GITHUB_WORKSPACE:/src" -w /src \
             debian:trixie sh -euc '
               apt-get update
-              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+              # Same tool set as the documented build host, including
+              # live-build Recommends (apt-utils, cpio, file, xz-utils, ...).
+              DEBIAN_FRONTEND=noninteractive apt-get install -y \
                 build-essential ca-certificates debhelper debian-archive-keyring debootstrap \
                 dosfstools git grub-efi-amd64-bin grub-pc-bin live-build mtools \
                 squashfs-tools sudo xorriso
               git config --global --add safe.directory /src
               ./scripts/build.sh
-            '
+            ' 2>&1 | tee ci-build.log
 
       - name: Show result
         if: always()
         run: |
           ls -la ./*.iso* ./*.packages 2>/dev/null || true
           cat ./*.iso.sha256 2>/dev/null || true
-          grep -E '^E: ' build.log | head -20 || true
           df -h /
+
+      # Annotations are readable without signing in (unlike raw job logs), so a
+      # failure can be diagnosed from the public API.
+      - name: Publish failure summary as annotation
+        if: failure()
+        run: |
+          log=build.log; [ -s "$log" ] || log=ci-build.log
+          [ -s "$log" ] || { echo "::error title=ISO build failed::no build log produced"; exit 0; }
+          {
+            echo "Last error-like lines in $log:"
+            grep -nE '^E: |[Ee]rror|[Ff]ailed|returned error|exit status' "$log" | tail -25 | cut -c1-220
+            echo "---- last 40 lines of $log ----"
+            tail -40 "$log" | cut -c1-220
+          } > summary.txt
+          msg=$(sed 's/%/%25/g; s/\r/%0D/g' summary.txt | awk 'BEGIN{ORS="%0A"} {print}')
+          echo "::error title=ISO build failed::$msg"
 
       - name: Upload ISO
         if: success()
@@ -76,6 +94,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: build-log
-          path: build.log
+          path: |
+            build.log
+            ci-build.log
           if-no-files-found: ignore
           retention-days: 7
