@@ -1,33 +1,66 @@
 name: Build ORVANTA ISO
 
-# Manual only: a full ISO build takes a long time and needs a privileged container.
+# Runs on pull requests that change build inputs, and manually.
+# The build runs in a privileged debian:trixie container on the runner host so
+# the host can first free disk space (a full build needs roughly 20 GB).
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - 'auto/**'
+      - 'config/**'
+      - 'orvanta-control-center/**'
+      - 'scripts/build.sh'
+      - 'scripts/check-host.sh'
+      - '.github/workflows/build-iso.yml'
 
 permissions:
   contents: read
 
+concurrency:
+  group: build-iso-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   iso:
     runs-on: ubuntu-24.04
-    container:
-      image: debian:trixie
-      options: --privileged
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
-      - name: Install build dependencies
+        with:
+          fetch-depth: 1
+
+      - name: Free runner disk space
         run: |
-          apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-            build-essential ca-certificates debhelper debian-archive-keyring debootstrap \
-            dosfstools git grub-efi-amd64-bin grub-pc-bin live-build mtools \
-            squashfs-tools sudo xorriso
-      - name: Build ISO
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          sudo docker image prune --all --force >/dev/null
+          df -h /
+
+      - name: Build ISO in Debian 13 container
         run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          ./scripts/build.sh
+          docker run --rm --privileged \
+            -v "$GITHUB_WORKSPACE:/src" -w /src \
+            debian:trixie sh -euc '
+              apt-get update
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+                build-essential ca-certificates debhelper debian-archive-keyring debootstrap \
+                dosfstools git grub-efi-amd64-bin grub-pc-bin live-build mtools \
+                squashfs-tools sudo xorriso
+              git config --global --add safe.directory /src
+              ./scripts/build.sh
+            '
+
+      - name: Show result
+        if: always()
+        run: |
+          ls -la ./*.iso* ./*.packages 2>/dev/null || true
+          cat ./*.iso.sha256 2>/dev/null || true
+          grep -E '^E: ' build.log | head -20 || true
+          df -h /
+
       - name: Upload ISO
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: orvanta-0.1-amd64
@@ -35,5 +68,14 @@ jobs:
             orvanta-0.1-amd64.hybrid.iso
             orvanta-0.1-amd64.hybrid.iso.sha256
             orvanta-0.1-amd64.packages
-            build.log
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+          if-no-files-found: ignore
           retention-days: 7
