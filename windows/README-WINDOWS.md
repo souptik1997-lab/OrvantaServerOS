@@ -1,4 +1,3 @@
-
 # Build ORVANTA from Windows using WSL2
 
 ## 1. Install WSL2 and Debian
@@ -17,61 +16,52 @@ wsl --install -d Debian
 ```
 
 Restart if Windows requests it. Launch Debian from the Start menu and create your Linux username and password.
+Check that the distribution is Debian 13 (trixie): `grep VERSION_CODENAME /etc/os-release`.
 
 ## 2. Put the project inside the Linux filesystem
 
-For best performance, do not build from `/mnt/c/...`. Extract/copy the project into the Debian home directory.
+Build inside the Debian home directory, not under `/mnt/c` or `/mnt/e`. Windows
+drives mounted in WSL do not keep Linux file permissions and ownership reliably,
+and live-build needs real Linux permissions inside the image.
 
-From PowerShell, if the ZIP is in Downloads:
-
-```powershell
-wsl -d Debian
-```
-
-Then inside Debian:
+Inside Debian:
 
 ```bash
-mkdir -p ~/orvanta
-cd ~/orvanta
-```
-
-Copy the ZIP from Windows Downloads (replace `YOUR_WINDOWS_USERNAME`):
-
-```bash
-cp /mnt/c/Users/YOUR_WINDOWS_USERNAME/Downloads/ORVANTA-Foundation-0.1.zip ~/
 sudo apt-get update
-sudo apt-get install -y unzip
-unzip ~/ORVANTA-Foundation-0.1.zip -d ~/orvanta
-cd ~/orvanta/ORVANTA-Foundation-0.1
+sudo apt-get install -y git ca-certificates
+git clone https://github.com/souptik1997-lab/OrvantaServerOS ~/OrvantaServerOS
+cd ~/OrvantaServerOS
 ```
 
 ## 3. Install build dependencies and build
 
 ```bash
-chmod +x windows/bootstrap-and-build.sh
 ./windows/bootstrap-and-build.sh
 ```
 
-The build helper installs Debian live-build tools and invokes the project build.
+The helper installs Debian live-build tools and runs `scripts/build.sh`, which
+builds the Control Center package and then the ISO.
 
 ## 4. Locate the ISO
 
-After a successful build, locate the ISO:
+After a successful build the project root contains:
+
+- `orvanta-0.1-amd64.hybrid.iso` — the live image
+- `orvanta-0.1-amd64.hybrid.iso.sha256` — its SHA-256 checksum
+- `orvanta-0.1-amd64.packages` — the list of packages in the image
+- `build.log` — the full build log
+
+To copy the ISO to Windows (for writing to USB with a tool such as Rufus):
 
 ```bash
-find . -maxdepth 2 -type f -name '*.iso' -ls
+cp orvanta-0.1-amd64.hybrid.iso* /mnt/c/Users/$USER/Downloads/
 ```
 
-Create a checksum:
-
-```bash
-sha256sum ./*.iso
-```
+(Replace `$USER` with your Windows user name if it differs from the Linux one.)
 
 ## WSL2 caveats
 
 - Use WSL2, not WSL1.
-- Build inside the Linux filesystem (`~/orvanta`), not `/mnt/c`, for better filesystem performance.
 - Some live-build operations use mounts, chroots and loop devices. WSL2 support can vary by Windows/WSL version. If the build fails with mount, loop-device or privileged-operation errors, use a native Debian 13 build host or a dedicated Linux build machine.
 - WSL2 is only the build environment. The resulting ISO is intended to boot on physical x86-64 hardware.
 - Do not treat a successful ISO build as proof of Secure Boot compatibility or production security.

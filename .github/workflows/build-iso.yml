@@ -1,0 +1,39 @@
+name: Build ORVANTA ISO
+
+# Manual only: a full ISO build takes a long time and needs a privileged container.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  iso:
+    runs-on: ubuntu-24.04
+    container:
+      image: debian:trixie
+      options: --privileged
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            build-essential ca-certificates debhelper debian-archive-keyring debootstrap \
+            dosfstools git grub-efi-amd64-bin grub-pc-bin live-build mtools \
+            squashfs-tools sudo xorriso
+      - name: Build ISO
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          ./scripts/build.sh
+      - name: Upload ISO
+        uses: actions/upload-artifact@v4
+        with:
+          name: orvanta-0.1-amd64
+          path: |
+            orvanta-0.1-amd64.hybrid.iso
+            orvanta-0.1-amd64.hybrid.iso.sha256
+            orvanta-0.1-amd64.packages
+            build.log
+          retention-days: 7
