@@ -38,7 +38,9 @@ jobs:
           df -h /
 
       - name: Build ISO in Debian 13 container
-        # bash on Actions runs with -o pipefail, so tee does not hide a failure.
+        # An explicit 'shell: bash' makes Actions use -o pipefail; with the
+        # default shell, a failed build piped through tee would pass.
+        shell: bash
         run: |
           docker run --rm --privileged \
             -v "$GITHUB_WORKSPACE:/src" -w /src \
@@ -60,6 +62,20 @@ jobs:
           ls -la ./*.iso* ./*.packages 2>/dev/null || true
           cat ./*.iso.sha256 2>/dev/null || true
           df -h /
+
+      # Annotations are public via the API; publish the verified ISO facts.
+      - name: Publish ISO summary as annotation
+        if: success()
+        shell: bash
+        run: |
+          iso=orvanta-0.1-amd64.hybrid.iso
+          test -s "$iso"
+          sha256sum -c "$iso.sha256"
+          size=$(stat -c %s "$iso")
+          pkgs=$(wc -l < orvanta-0.1-amd64.packages)
+          cc=$(grep -E '^orvanta-control-center[[:space:]]' orvanta-0.1-amd64.packages || echo 'orvanta-control-center MISSING')
+          kernel=$(grep -E '^linux-image-[0-9]' orvanta-0.1-amd64.packages | head -1)
+          echo "::notice title=ISO built::$iso size=$size bytes; $(cut -d' ' -f1 "$iso.sha256") sha256; $pkgs packages; $cc; $kernel"
 
       # Annotations are readable without signing in (unlike raw job logs), so a
       # failure can be diagnosed from the public API.
