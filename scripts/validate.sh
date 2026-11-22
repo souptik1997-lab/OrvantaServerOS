@@ -4,7 +4,8 @@ set -eu
 cd "$(dirname "$0")/.."
 
 SHELL_SCRIPTS="auto/build auto/clean auto/config scripts/build.sh scripts/check-host.sh \
-scripts/check-packages.sh scripts/clean.sh scripts/validate.sh windows/bootstrap-and-build.sh \
+scripts/check-packages.sh scripts/clean.sh scripts/qemu-smoke-test.sh scripts/validate.sh \
+windows/bootstrap-and-build.sh \
 config/hooks/normal/0100-orvanta-live-hardening.hook.chroot"
 
 echo "== Executable bits"

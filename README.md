@@ -84,11 +84,14 @@ there until it has actually run.
 
 ## Test safely
 
-1. First test in a disposable test machine or spare PC (no VM is required).
-2. Boot from USB using UEFI.
-3. Check KDE, networking, audio, display scaling, Intel Wi-Fi/Ethernet, USB and storage.
-4. Confirm no remote administration services listen: `sudo ss -tlnp` and `sudo nft list ruleset`.
-5. Do not use this prototype as a production server or store important data on it.
+1. Optional quick check: `sudo ./scripts/qemu-smoke-test.sh orvanta-0.1-amd64.hybrid.iso`
+   boots the ISO in QEMU (UEFI and BIOS) and saves screenshots. QEMU is only a
+   test tool here; ORVANTA itself needs no VM.
+2. Test in a disposable test machine or spare PC.
+3. Boot from USB using UEFI. The boot menu waits for Enter.
+4. Check KDE, networking, audio, display scaling, Intel Wi-Fi/Ethernet, USB and storage.
+5. Confirm no remote administration services listen: `sudo ss -tlnp` and `sudo nft list ruleset`.
+6. Do not use this prototype as a production server or store important data on it.
 
 ## Current limitations
 
@@ -107,7 +110,7 @@ there until it has actually run.
 - `config/package-lists/` — package selection
 - `config/includes.chroot/` — files included in the live filesystem
 - `config/hooks/normal/` — ORVANTA chroot hooks (live-session hardening)
-- `scripts/` — host checks, build, clean, validation and package checks
+- `scripts/` — host checks, build, clean, validation, package checks and QEMU smoke test
 - `orvanta-control-center/` — read-only Control Center and its Debian packaging
 - `tests/` — unit tests
 - `docs/` — architecture and release notes

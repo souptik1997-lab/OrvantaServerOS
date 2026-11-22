@@ -8,9 +8,11 @@
 - [x] Verify every listed package is installable on Debian 13 amd64 (2026-11-22, `scripts/check-packages.sh`)
 - [x] Live-session hardening: default-deny firewall, remote-admin services masked (2026-11-22)
 - [x] Complete a first ISO build (2026-11-22, GitHub Actions run 45052055224, commit 839116c; see below)
-- [ ] Boot-test the ISO (not yet booted anywhere, VM or hardware)
-- [ ] Boot-test on physical x86-64 hardware
-- [ ] Validate UEFI and Secure Boot behaviour
+- [x] Boot the ISO in a VM: reaches the KDE Plasma desktop in QEMU/KVM, UEFI and BIOS (2026-11-23, `scripts/qemu-smoke-test.sh`)
+- [x] Inspect the published ISO offline: checksum, boot records, firewall, masked services (2026-11-23)
+- [ ] Boot-test on physical x86-64 hardware (Intel N150 target and one other PC)
+- [ ] Validate Secure Boot behaviour (UEFI boot without Secure Boot works in QEMU)
+- [ ] Verify the firewall and listeners in a running session (`nft list ruleset`, `ss -tlnp`)
 - [x] Add a Debian 13 CI validation workflow
 - [x] CI workflows pass on GitHub Actions (2026-11-22, PR #1, commit 839116c)
 - [ ] Add ORVANTA desktop branding
@@ -70,7 +72,27 @@ Earlier ISO runs on PR #1, in order:
 
 Details in `docs/REVIEW-2026-11-22.md`, issues 15–17.
 
-Not executed: booting the ISO (VM or hardware), UEFI/Secure Boot, the
+## Verification record — 2026-11-23: the published ISO
+
+The artifact from run 45052055224 was downloaded and tested on Debian 13
+(WSL2) with QEMU 10.0.13, OVMF 2025.02 and KVM.
+
+| Check | Result |
+|-------|--------|
+| SHA-256 of `orvanta-0.1-amd64.hybrid.iso` | `1bc4ba90…2e73`, matches the build |
+| El Torito boot records | BIOS and UEFI entries present; volume `ORVANTA_0_1`, publisher `ORVANTA PROJECT` |
+| `filesystem.squashfs` (mounted read-only) | `nftables.service` enabled; `/etc/nftables.conf` identical to the repository; cockpit.socket/.service, smbd, nmbd, samba-ad-dc, docker.service/.socket, containerd masked; no SSH server; `20auto-upgrades` set to 0; `orvanta-control-center` 0.1.1 `install ok installed` |
+| QEMU/KVM, UEFI (OVMF, Secure Boot off), 4 GB RAM | GRUB menu → Enter → KDE Plasma desktop, auto-login, Welcome Center shown within ~3 min |
+| QEMU/KVM, BIOS (SeaBIOS) | Same: GRUB menu → KDE Plasma desktop |
+
+![ORVANTA 0.1 live session in QEMU (UEFI)](images/qemu-uefi-desktop-0.1.png)
+
+Observations: the GRUB menu has no automatic timeout (it waits for Enter);
+boot menu and Plasma Welcome Center still show Debian/KDE branding (branding
+milestone). The firewall and listening sockets were verified in the image
+files, not yet inside a running session.
+
+Not executed: physical hardware, UEFI/Secure Boot, the
 installed-system path (no installer exists yet).
 
 ## Verification record — 2026-11-19
