@@ -1,5 +1,16 @@
+orvanta-control-center (0.1.1) unstable; urgency=low
+
+  * Pass command-line arguments to QApplication.
+  * Add a manual page and desktop-entry keywords; use a single main menu
+    category (System; Monitor).
+  * Drop the unneeded python3-pyside6.qtwidgets build dependency.
+  * Complete the MIT licence text in debian/copyright; add Homepage and Vcs
+    fields; bump Standards-Version to 4.7.2.
+
+ -- ORVANTA Project <maintainers@example.invalid>  Sun, 22 Nov 2026 00:00:00 +0000
+
 orvanta-control-center (0.1.0) unstable; urgency=low
 
   * Initial read-only Qt for Python system overview prototype.
 
- -- ORVANTA Project <maintainers@example.invalid>  Wed, 19 Nov 2026 00:00:00 +0000
+ -- ORVANTA Project <maintainers@example.invalid>  Thu, 19 Nov 2026 00:00:00 +0000

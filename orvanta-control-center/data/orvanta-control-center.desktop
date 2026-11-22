@@ -5,5 +5,6 @@ Comment=View ORVANTA system information
 Exec=orvanta-control-center
 Icon=orvanta
 Terminal=false
-Categories=System;Settings;
+Categories=System;Monitor;
+Keywords=system;overview;dashboard;memory;disk;uptime;
 StartupNotify=true

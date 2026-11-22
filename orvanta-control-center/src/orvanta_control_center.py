@@ -6,6 +6,7 @@ privileged changes. Administrative actions will later use a narrowly-scoped
 Polkit-authorised backend.
 """
 import os
+import sys
 import shutil
 import socket
 import time
@@ -262,7 +263,7 @@ class MainWindow(QMainWindow):
 
 
 def main():
-    app = QApplication([])
+    app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
     app.setFont(QFont("Noto Sans", 10))
     window = MainWindow()
