@@ -17,7 +17,7 @@
 - [x] CI workflows pass on GitHub Actions (2026-11-22, PR #1, commit 839116c)
 - [x] Boot menu starts automatically after 5 s (2026-11-23, tested on a patched 0.1 ISO in QEMU; see below)
 - [x] ORVANTA branding on the boot menu and the Plasma Welcome Center (2026-11-23, same test)
-- [ ] Confirm the boot menu and branding in a full CI ISO build
+- [x] Confirm the boot menu and branding in a full CI ISO build (2026-11-23, run 45096429785, commit e01662d)
 - [ ] Add ORVANTA desktop branding beyond that (Plasma theme, wallpaper, login, boot splash)
 - [ ] Design installed-system installer
 - [ ] Implement Control Center and update agent
@@ -133,6 +133,32 @@ Limits: this was a patched copy of the 0.1 ISO, not a fresh `lb build`; the
 full build is checked by `build-iso.yml` on PR #1. In BIOS mode the menu is
 drawn at 640×480 (live-build's font fallback, unchanged), and GRUB prints
 live-build's existing `unicode.pf2 not found` message before it.
+
+## Verification record — 2026-11-23: CI ISO with the boot menu and branding
+
+ISO built by GitHub Actions from commit e01662d
+([run 45096429785](https://github.com/souptik1997-lab/OrvantaServerOS/actions/runs/45096429785),
+artifact `orvanta-0.1-amd64`, kept until 2026-11-30):
+
+- File: `orvanta-0.1-amd64.hybrid.iso`, 2 996 506 624 bytes
+- SHA-256: `daa66e26320aebb4915f87d983c95875636945de0b44bfe190eb90323fad6d29`
+- Packages in image: 2267; kernel `linux-image-6.12.118+deb13-amd64` 6.12.118-1
+  (newer than the first ISO because the Debian archive moved on);
+  `orvanta-control-center` 0.1.1
+
+The artifact was downloaded and tested on Debian 13 (WSL2) with QEMU/KVM and
+OVMF, the same tools as above.
+
+| Check | Result |
+|-------|--------|
+| SHA-256 (`sha256sum -c` with the published `.sha256`) | OK, matches the build |
+| `boot/grub/grub.cfg` / `config.cfg` in the ISO | Entries "Start ORVANTA OS", "Start ORVANTA OS (fail-safe mode)", Utilities; no generated "Live system" entries; `set default=0`, `set timeout=5`, `set timeout_style=menu`; no unreplaced `@…@` placeholders; `live-theme/theme.txt` identical to the repository; ORVANTA `splash.png` present |
+| `filesystem.squashfs` | `/etc/os-release` is ORVANTA OS 0.1 (`ID=orvanta`, `ID_LIKE=debian`, `LOGO=orvanta`) with live-build's `IMAGE_ID=live` and `BUILD_ID`; `/usr/lib/os-release` still `ID=debian`; logo and Welcome Center file identical to the repository; Control Center installed; nftables enabled; Cockpit, Samba and Docker masked |
+| Boot, UEFI (OVMF, Secure Boot off), **no key pressed** | ORVANTA menu with countdown (4 s … 0 s), first entry started by itself, KDE Plasma reached; Welcome Center shows the ORVANTA text, logo, caption and link |
+| Boot, BIOS (SeaBIOS), **no key pressed** | Same: ORVANTA menu (640×480) counts down and starts by itself; KDE Plasma and the branded Welcome Center reached |
+| `scripts/qemu-smoke-test.sh` (sends no key) | UEFI and BIOS both reach the desktop |
+
+Not executed: physical hardware, Secure Boot, the in-session `nft`/`ss` checks.
 
 ## Verification record — 2026-11-19
 
