@@ -117,9 +117,10 @@ there until it has actually run.
   `/usr/lib/os-release` is unchanged) and the desktop: the default Plasma
   global theme is "ORVANTA" (`org.orvanta.desktop`: ORVANTA Dark colours, the
   photorealistic ORVANTA wallpaper rendered by `scripts/render-artwork.py`,
-  Breeze widgets and icons). The login screen (SDDM), the
-  Plasma startup splash and the kernel boot splash are still KDE/Debian
-  defaults. The Control Center is a read-only prototype.
+  Breeze widgets and icons). The boot splash (Plymouth theme `orvanta`), the
+  Plasma startup splash and the login screen (KDE's Breeze SDDM theme with
+  the ORVANTA wallpaper, wordmark and avatar) are ORVANTA-branded too. The Breeze widget style, icons and window
+  decoration remain KDE's. The Control Center is a read-only prototype.
 - Automatic updates are not activated in the live session. The installed-system update policy will be implemented and tested separately.
 - No custom kernel, custom init system or custom package manager is being introduced.
 - No update rollback guarantee exists yet.

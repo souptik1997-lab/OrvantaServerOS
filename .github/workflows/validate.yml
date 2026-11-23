@@ -18,7 +18,7 @@ jobs:
       # can validate the live firewall ruleset.
       options: --cap-add=NET_ADMIN
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install validation dependencies
         run: |
           apt-get update

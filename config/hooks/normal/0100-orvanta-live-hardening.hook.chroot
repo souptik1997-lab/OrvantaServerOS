@@ -21,7 +21,11 @@ done
 # copied from a Windows drive, would otherwise ship them group/world-writable).
 for p in /etc/issue /etc/orvanta-release /etc/nftables.conf /etc/xdg/kdeglobals \
          /etc/xdg/kcm-about-distrorc /etc/live/config.conf.d/orvanta.conf /etc/skel/.face \
+         /etc/sddm.conf.d/10-orvanta.conf /usr/share/sddm/themes/breeze/theme.conf.user \
+         /usr/share/orvanta /usr/share/plymouth/themes/orvanta \
          /etc/sysctl.d/60-orvanta-hardening.conf \
+         /etc/systemd/system/sddm.service.d/orvanta-after-plymouth.conf \
+         /usr/share/sddm/faces/orvanta.face.icon \
          /usr/share/color-schemes/OrvantaDark.colors \
          /usr/share/icons/hicolor/scalable/apps/orvanta.svg \
          /usr/share/plasma/look-and-feel/org.orvanta.desktop \
@@ -35,11 +39,14 @@ done
 # Their parent directories exist in Debian already; copying the includes must
 # not have loosened them.
 for d in /etc /etc/xdg /etc/sysctl.d /etc/live /etc/live/config.conf.d /etc/skel \
+         /etc/sddm.conf.d /usr/share/sddm /usr/share/sddm/themes /usr/share/sddm/themes/breeze \
+         /etc/systemd /etc/systemd/system /etc/systemd/system/sddm.service.d /usr/share/sddm/faces \
+         /usr/share/plymouth /usr/share/plymouth/themes \
          /usr /usr/share /usr/share/color-schemes \
          /usr/share/icons /usr/share/icons/hicolor /usr/share/icons/hicolor/scalable \
          /usr/share/icons/hicolor/scalable/apps /usr/share/plasma \
          /usr/share/plasma/look-and-feel /usr/share/plasma/plasma-welcome /usr/share/wallpapers; do
-    [ -d "$d" ] && chmod go-w "$d"
+    if [ -d "$d" ]; then chmod go-w "$d"; fi
 done
 # Fail the build if anything under /etc or /usr is world-writable (files, or
 # directories without the sticky bit).

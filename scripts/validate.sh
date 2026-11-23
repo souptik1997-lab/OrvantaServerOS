@@ -132,6 +132,75 @@ if errors:
 print("org.orvanta.desktop: metadata, defaults, colour scheme, wallpaper and kdeglobals consistent")
 PY
 
+echo "== Boot splash, login screen and Plasma splash"
+python3 - <<'PY'
+import configparser, pathlib, re, struct, sys
+root = pathlib.Path("config/includes.chroot")
+errors = []
+
+def png_size(path):
+    data = path.read_bytes()[:24]
+    if data[:8] != b"\x89PNG\r\n\x1a\n":
+        return None
+    return struct.unpack(">II", data[16:24])
+
+# Plymouth theme: the .plymouth file must point at this theme's script and
+# images, and the script may only load images that exist.
+pt = root / "usr/share/plymouth/themes/orvanta"
+cp = configparser.ConfigParser(interpolation=None); cp.optionxform = str
+cp.read(pt / "orvanta.plymouth")
+if cp.get("Plymouth Theme", "ModuleName", fallback="") != "script":
+    errors.append("orvanta.plymouth: ModuleName must be script")
+if cp.get("script", "ImageDir", fallback="") != "/usr/share/plymouth/themes/orvanta" or \
+   cp.get("script", "ScriptFile", fallback="") != "/usr/share/plymouth/themes/orvanta/orvanta.script":
+    errors.append("orvanta.plymouth: ImageDir/ScriptFile do not point at the theme")
+script = (pt / "orvanta.script").read_text()
+for name in re.findall(r'Image\("([^"]+)"\)', script):
+    if not png_size(pt / name):
+        errors.append(f"orvanta.script loads missing or non-PNG image {name}")
+for o, c in ("()", "{}"):
+    if script.count(o) != script.count(c):
+        errors.append(f"orvanta.script: unbalanced {o}{c}")
+for fn in ("SetRefreshFunction", "SetDisplayPasswordFunction", "SetDisplayNormalFunction"):
+    if f"Plymouth.{fn}(" not in script:
+        errors.append(f"orvanta.script: no Plymouth.{fn}")
+if png_size(pt / "background.png") != (1920, 1080):
+    errors.append("plymouth background.png must be 1920x1080")
+
+# SDDM: theme selected and every path in theme.conf.user exists in the image
+conf = (root / "etc/sddm.conf.d/10-orvanta.conf").read_text()
+if "Current=breeze" not in conf.splitlines():
+    errors.append("10-orvanta.conf: Current=breeze missing")
+for line in (root / "usr/share/sddm/themes/breeze/theme.conf.user").read_text().splitlines():
+    if line.startswith(("background=", "logo=")):
+        target = root / line.split("=", 1)[1].lstrip("/")
+        if not target.is_file():
+            errors.append(f"theme.conf.user: {line} does not exist in includes")
+
+# Plasma splash: selected in the global theme; every file:// it loads exists
+lnf = root / "usr/share/plasma/look-and-feel/org.orvanta.desktop/contents"
+if not re.search(r"^\[KSplash\]\nTheme=org\.orvanta\.desktop$", (lnf / "defaults").read_text(), re.M):
+    errors.append("defaults: [KSplash] Theme is not org.orvanta.desktop")
+for url in re.findall(r'"file:///([^"]+)"', (lnf / "splash/Splash.qml").read_text()):
+    if not (root / url).is_file():
+        errors.append(f"Splash.qml loads missing file /{url}")
+
+# Kernel command line asks for the splash
+if "quiet splash" not in pathlib.Path("auto/config").read_text():
+    errors.append("auto/config: --bootappend-live lacks 'quiet splash'")
+dropin = root / "etc/systemd/system/sddm.service.d/orvanta-after-plymouth.conf"
+if "After=plymouth-quit.service" not in dropin.read_text().splitlines():
+    errors.append(f"{dropin}: After=plymouth-quit.service missing")
+if (root / "etc/systemd/system/plymouth-quit.service.d").exists():
+    errors.append("plymouth-quit override present: --retain-splash leaves the SDDM greeter black")
+if not png_size(root / "usr/share/sddm/faces/orvanta.face.icon"):
+    errors.append("usr/share/sddm/faces/orvanta.face.icon missing or not a PNG")
+
+if errors:
+    print("\n".join("ERROR: " + e for e in errors)); sys.exit(1)
+print("Plymouth theme, SDDM configuration, Plasma splash and kernel command line consistent")
+PY
+
 echo "== Kernel hardening (sysctl.d)"
 sysctl_conf=config/includes.chroot/etc/sysctl.d/60-orvanta-hardening.conf
 grep -vE '^[[:space:]]*(#|$)' "$sysctl_conf" | while IFS= read -r line; do

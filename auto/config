@@ -20,5 +20,5 @@ lb config noauto \
     --iso-publisher "ORVANTA Project" \
     --iso-volume "ORVANTA_0_1" \
     --image-name "orvanta-0.1" \
-    --bootappend-live "boot=live components hostname=orvanta username=orvanta locales=en_US.UTF-8 keyboard-layouts=us" \
+    --bootappend-live "boot=live components quiet splash systemd.show_status=false hostname=orvanta username=orvanta locales=en_US.UTF-8 keyboard-layouts=us" \
     "${@}"

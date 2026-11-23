@@ -1,0 +1,106 @@
+# ORVANTA OS boot splash (Plymouth script plugin).
+# Background scaled to cover the screen, wordmark centred, rotating spinner
+# below it; password and question prompts (e.g. for an encrypted disk) and
+# boot messages are drawn as text. Images come from scripts/render-artwork.py.
+# SPDX-License-Identifier: MIT
+
+Window.SetBackgroundTopColor(0.02, 0.05, 0.11);
+Window.SetBackgroundBottomColor(0.02, 0.05, 0.11);
+
+screen_w = Window.GetWidth();
+screen_h = Window.GetHeight();
+
+# ---------------------------------------------------------------- background
+bg_image = Image("background.png");
+bg_scale = Math.Max(screen_w / bg_image.GetWidth(), screen_h / bg_image.GetHeight());
+bg_w = Math.Int(bg_image.GetWidth() * bg_scale + 0.5);
+bg_h = Math.Int(bg_image.GetHeight() * bg_scale + 0.5);
+bg_sprite = Sprite(bg_image.Scale(bg_w, bg_h));
+bg_sprite.SetPosition(Math.Int((screen_w - bg_w) / 2), Math.Int((screen_h - bg_h) / 2), -100);
+
+# ---------------------------------------------------------------- wordmark
+logo_image = Image("logo.png");
+logo_scale = Math.Min(1.6, (screen_h * 0.30) / logo_image.GetHeight());
+logo_w = Math.Int(logo_image.GetWidth() * logo_scale);
+logo_h = Math.Int(logo_image.GetHeight() * logo_scale);
+logo_sprite = Sprite(logo_image.Scale(logo_w, logo_h));
+logo_x = Math.Int((screen_w - logo_w) / 2);
+logo_y = Math.Int(screen_h * 0.42 - logo_h / 2);
+logo_sprite.SetPosition(logo_x, logo_y, 10);
+
+# ---------------------------------------------------------------- spinner
+spinner_image = Image("spinner.png");
+spinner_size = Math.Int(Math.Min(96, screen_h * 0.075));
+spinner_image = spinner_image.Scale(spinner_size, spinner_size);
+spinner_sprite = Sprite(spinner_image);
+spinner_cx = Math.Int(screen_w / 2);
+spinner_cy = Math.Int(screen_h * 0.72);
+spinner_sprite.SetPosition(spinner_cx - spinner_size / 2, spinner_cy - spinner_size / 2, 10);
+spinner_angle = 0;
+
+fun refresh_callback() {
+    spinner_angle = spinner_angle + 0.09;
+    if (spinner_angle > 2 * Math.Pi)
+        spinner_angle = spinner_angle - 2 * Math.Pi;
+    rotated = spinner_image.Rotate(spinner_angle);
+    spinner_sprite.SetImage(rotated);
+    spinner_sprite.SetPosition(spinner_cx - rotated.GetWidth() / 2,
+                               spinner_cy - rotated.GetHeight() / 2, 10);
+}
+Plymouth.SetRefreshFunction(refresh_callback);
+
+# ---------------------------------------------------------------- prompts
+prompt_sprite = Sprite();
+entry_sprite = Sprite();
+prompt_sprite.SetZ(20);
+entry_sprite.SetZ(20);
+
+fun show_prompt(text, entry) {
+    spinner_sprite.SetOpacity(0);
+    p = Image.Text(text, 0.85, 0.92, 1.0, 1, "Sans 12");
+    prompt_sprite.SetImage(p);
+    prompt_sprite.SetPosition(Math.Int((screen_w - p.GetWidth()) / 2), spinner_cy - 30, 20);
+    prompt_sprite.SetOpacity(1);
+    e = Image.Text(entry, 0.37, 0.91, 0.96, 1, "Sans 16");
+    entry_sprite.SetImage(e);
+    entry_sprite.SetPosition(Math.Int((screen_w - e.GetWidth()) / 2), spinner_cy + 6, 20);
+    entry_sprite.SetOpacity(1);
+}
+
+fun display_password_callback(prompt, bullets) {
+    if (prompt == "")
+        prompt = "Passphrase";
+    dots = "";
+    for (i = 0; i < bullets; i++)
+        dots = dots + "●";
+    if (bullets == 0)
+        dots = " ";
+    show_prompt(prompt, dots);
+}
+Plymouth.SetDisplayPasswordFunction(display_password_callback);
+
+fun display_question_callback(prompt, entry) {
+    if (entry == "")
+        entry = " ";
+    show_prompt(prompt, entry);
+}
+Plymouth.SetDisplayQuestionFunction(display_question_callback);
+
+fun display_normal_callback() {
+    prompt_sprite.SetOpacity(0);
+    entry_sprite.SetOpacity(0);
+    spinner_sprite.SetOpacity(1);
+}
+Plymouth.SetDisplayNormalFunction(display_normal_callback);
+
+# ---------------------------------------------------------------- messages
+message_sprite = Sprite();
+message_sprite.SetZ(20);
+
+fun message_callback(text) {
+    m = Image.Text(text, 0.56, 0.70, 0.85, 1, "Sans 11");
+    message_sprite.SetImage(m);
+    message_sprite.SetPosition(Math.Int((screen_w - m.GetWidth()) / 2),
+                               Math.Int(screen_h * 0.90), 20);
+}
+Plymouth.SetMessageFunction(message_callback);

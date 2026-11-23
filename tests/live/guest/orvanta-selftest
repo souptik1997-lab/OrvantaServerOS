@@ -55,6 +55,7 @@ shot about         kinfocenter kcm_about-distro
 shot dolphin       dolphin /
 shot controlcenter orvanta-control-center
 shot partitionmgr  partitionmanager
+shot sddmpreview   sddm-greeter-qt6 --test-mode --theme /usr/share/sddm/themes/breeze
 
 
 # ------------------------------------------------------------------ network
@@ -203,6 +204,11 @@ for p in /etc/issue /etc/nftables.conf /etc/xdg/kdeglobals /etc/sysctl.d/60-orva
     info ac.mode "$(stat -c '%a %U:%G %n' "$p")"
 done
 sudo userdel -r tester 2>/dev/null
+
+log "== Summary: $(grep -c '^PASS' "$R/selftest.log") pass, $(grep -c '^FAIL' "$R/selftest.log") fail"
+check ui.splash.plymouth "ORVANTA boot splash selected" grep -qx 'Theme=orvanta' /etc/plymouth/plymouthd.conf
+check ui.splash.cmdline "kernel booted with 'splash'" grep -qw splash /proc/cmdline
+check ui.sddm.theme "login screen uses the ORVANTA-configured Breeze theme" grep -qx 'Current=breeze' /etc/sddm.conf.d/10-orvanta.conf
 
 log "== Summary: $(grep -c '^PASS' "$R/selftest.log") pass, $(grep -c '^FAIL' "$R/selftest.log") fail"
 sync

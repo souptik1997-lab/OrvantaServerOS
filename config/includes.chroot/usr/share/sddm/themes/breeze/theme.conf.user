@@ -1,0 +1,6 @@
+[General]
+type=image
+background=/usr/share/wallpapers/Orvanta/contents/images/3840x2160.jpg
+showlogo=shown
+logo=/usr/share/orvanta/branding/orvanta-wordmark.png
+color=#0a2245

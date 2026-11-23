@@ -14,8 +14,10 @@
 # asked and takes the screenshots (QEMU screendump). No key is pressed.
 #
 # OVERLAY_TREE=1 additionally layers this checkout's config/includes.chroot,
-# hook output and a freshly built Control Center onto an older ISO, to test
-# changes before a full 'lb build'.
+# hook output and a freshly built Control Center onto an older ISO, replaces
+# its initramfs with the one the hooks rebuild (boot splash) and applies this
+# checkout's --bootappend-live to the GRUB entries, to test changes before a
+# full 'lb build'.
 set -u
 ISO_IN="$(realpath "$1")"
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -25,6 +27,9 @@ W="$(mktemp -d)"
 ISO=$W/test.iso
 # shellcheck disable=SC2317 # called through the EXIT trap
 cleanup() {
+    for m in "$W/hookchroot/proc" "$W/hookchroot/sys" "$W/hookchroot/dev"; do
+        mountpoint -q "$m" && umount -R "$m"
+    done
     for m in "$W/hookchroot" "$W/sq" "$W/iso" "$W/res" "$W/hd"; do
         mountpoint -q "$m" && umount "$m"
     done
@@ -48,6 +53,10 @@ if [ "${OVERLAY_TREE:-0}" = 1 ]; then
     mount -o loop,ro "$ISO_IN" "$W/iso"
     mount -o loop,ro "$W/iso/live/filesystem.squashfs" "$W/sq"
     mount -t overlay overlay -o "lowerdir=$W/sq,upperdir=$W/hookroot,workdir=$W/hookwk" "$W/hookchroot"
+    # hooks run update-initramfs, which needs /proc, /sys and /dev (as in lb build)
+    mount -t proc proc "$W/hookchroot/proc"
+    mount --rbind /sys "$W/hookchroot/sys"; mount --make-rslave "$W/hookchroot/sys"
+    mount --rbind /dev "$W/hookchroot/dev"; mount --make-rslave "$W/hookchroot/dev"
     chroot "$W/hookchroot" dpkg -i /cc.deb >/dev/null
     cp "$REPO/config/includes.chroot/usr/share/icons/hicolor/scalable/apps/orvanta.svg" \
        "$W/hookchroot/usr/share/icons/hicolor/scalable/apps/orvanta.svg"
@@ -55,10 +64,23 @@ if [ "${OVERLAY_TREE:-0}" = 1 ]; then
         echo "hook failed"; exit 1
     fi
     rm -f "$W/hookchroot/cc.deb" "$W/hookchroot/hook1.sh" "$W/hookchroot/hook2.sh"
-    umount "$W/hookchroot" "$W/sq" "$W/iso"
+    # the rebuilt initramfs (boot splash inside) replaces the ISO's
+    for f in "$W"/hookchroot/boot/initrd.img-*; do
+        cp "$f" "$W/$(basename "$f")"
+        maps+=(-map "$W/$(basename "$f")" "/live/$(basename "$f")")
+    done
+    umount "$W/hookchroot/proc"; umount -R "$W/hookchroot/sys" "$W/hookchroot/dev"
+    umount "$W/hookchroot"
+    # GRUB: the ISO's entries with this tree's --bootappend-live
+    append=$(sed -n 's/.*--bootappend-live "\([^"]*\)".*/\1/p' "$REPO/auto/config")
+    sed "s|boot=live components [^$]*keyboard-layouts=us|$append|" "$W/iso/boot/grub/grub.cfg" > "$W/grub.cfg"
+    grep -q "$append" "$W/grub.cfg" || { echo "could not apply --bootappend-live to grub.cfg"; exit 1; }
+    umount "$W/sq" "$W/iso"
+    rm -rf "$W/hookroot/boot"
     find "$W/hookroot" -type c -delete
     mksquashfs "$W/hookroot" "$W/zz-orvanta-tree.squashfs" -noappend -quiet -all-root
-    maps+=(-map "$W/splash.png" /boot/grub/splash.png -map "$W/zz-orvanta-tree.squashfs" /live/zz-orvanta-tree.squashfs)
+    maps+=(-map "$W/splash.png" /boot/grub/splash.png -map "$W/grub.cfg" /boot/grub/grub.cfg
+           -map "$W/zz-orvanta-tree.squashfs" /live/zz-orvanta-tree.squashfs)
 fi
 mkdir -p "$W/testlayer/usr/local/bin" "$W/testlayer/etc/xdg/autostart"
 install -m 0755 "$HERE/guest/orvanta-selftest" "$W/testlayer/usr/local/bin/"

@@ -45,6 +45,31 @@ grep -qx 'LookAndFeelPackage=org.orvanta.desktop' /etc/xdg/kdeglobals
 grep -qx 'LogoPath=orvanta' /etc/xdg/kcm-about-distrorc
 grep -q '^LIVE_USER_FULLNAME="ORVANTA Live user"$' /etc/live/config.conf.d/orvanta.conf
 test -s /etc/skel/.face
+
+# Login screen: Breeze SDDM theme with the ORVANTA wallpaper and wordmark.
+grep -qx 'Current=breeze' /etc/sddm.conf.d/10-orvanta.conf
+test -d /usr/share/sddm/themes/breeze
+test -s /usr/share/orvanta/branding/orvanta-wordmark.png
+grep -qx 'logo=/usr/share/orvanta/branding/orvanta-wordmark.png' \
+    /usr/share/sddm/themes/breeze/theme.conf.user
+# Plasma startup splash, part of the ORVANTA global theme.
+test -s /usr/share/plasma/look-and-feel/org.orvanta.desktop/contents/splash/Splash.qml
+
+# Boot splash: ORVANTA Plymouth theme (the kernel command line has
+# "quiet splash"). It has to be inside the initramfs, so rebuild it and check.
+test -s /usr/share/plymouth/themes/orvanta/orvanta.script
+# SDDM starts after Plymouth has quit, and Plymouth must not keep its image
+# (--retain-splash left the SDDM greeter black in testing).
+grep -qx 'After=plymouth-quit.service' /etc/systemd/system/sddm.service.d/orvanta-after-plymouth.conf
+test ! -e /etc/systemd/system/plymouth-quit.service.d
+test -s /usr/share/sddm/faces/orvanta.face.icon
+plymouth-set-default-theme orvanta
+grep -qx 'Theme=orvanta' /etc/plymouth/plymouthd.conf
+update-initramfs -u -k all
+for initrd in /boot/initrd.img-*; do
+    lsinitramfs "$initrd" | grep -q 'usr/share/plymouth/themes/orvanta/orvanta.script'
+    lsinitramfs "$initrd" | grep -q 'usr/share/plymouth/themes/orvanta/background.png'
+done
 # Plasma reads the theme as a package; an existing desktop-base
 # /etc/xdg/plasma-workspace/env/env.sh must still list /etc/xdg first.
 if [ -f /etc/xdg/plasma-workspace/env/env.sh ]; then

@@ -13,9 +13,12 @@ Outputs (fixed seeds, so re-running gives the same images):
   config/includes.chroot/usr/share/wallpapers/Orvanta/contents/images/3840x2400.jpg
   config/includes.chroot/usr/share/wallpapers/Orvanta/contents/images/3840x2160.jpg
   config/bootloaders/grub-pc/splash.svg   (background embedded as JPEG)
+  config/includes.chroot/usr/share/plymouth/themes/orvanta/*.png (boot splash)
+  config/includes.chroot/usr/share/orvanta/branding/*.png (login/Plasma splash)
 
-Requires numpy and Pillow (Debian: python3-numpy python3-pil).
-Usage: python3 scripts/render-artwork.py [--only wallpaper|splash]
+Requires numpy, Pillow and rsvg-convert (Debian: python3-numpy python3-pil
+librsvg2-bin).
+Usage: python3 scripts/render-artwork.py [--only wallpaper|splash|bootsplash]
 """
 import argparse
 import base64
@@ -479,11 +482,63 @@ def splash():
     print(f"wrote {path.relative_to(ROOT)} (background {len(buf.getvalue())} bytes)")
 
 
+def spinner_png(size):
+    """Anti-aliased 270-degree arc with a fading tail (4x supersampled)."""
+    s = size * 4
+    ys, xs = np.mgrid[0:s, 0:s].astype(F)
+    x, y = xs + 0.5 - s / 2, ys + 0.5 - s / 2
+    r = np.sqrt(x * x + y * y)
+    ring = smoothstep(s * 0.30, s * 0.32, r) * (1 - smoothstep(s * 0.44, s * 0.46, r))
+    ang = (np.arctan2(y, x) + np.pi) / (2 * np.pi)            # 0..1 around
+    tail = np.clip(ang / 0.75, 0, 1) ** 1.6 * (ang <= 0.75)
+    alpha = np.clip(ring * tail, 0, 1)
+    c0, c1 = np.array([31, 143, 214], F), np.array([94, 231, 245], F)
+    rgb = c0 + (c1 - c0) * ang[..., None]
+    rgba = np.concatenate([rgb, alpha[..., None] * 255], axis=-1)
+    im = Image.fromarray(np.clip(rgba, 0, 255).astype(np.uint8))
+    return im.resize((size, size), Image.LANCZOS)
+
+
+def wordmark_png(width, height):
+    import subprocess
+    out = subprocess.run(["rsvg-convert", "--format", "png", "--width", str(width),
+                          "--height", str(height), str(ROOT / "artwork/orvanta-wordmark.svg")],
+                         check=True, capture_output=True).stdout
+    return Image.open(io.BytesIO(out))
+
+
+def save_png(im, path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    im.save(path, "PNG", optimize=True)
+    print(f"wrote {path.relative_to(ROOT)} {im.size[0]}x{im.size[1]}")
+
+
+def bootsplash():
+    """Plymouth theme images and the shared login/Plasma-splash logos."""
+    W, H = 1920, 1080
+    s = Scene(W, H, cx=1700, cy=930, R=330, moon=(250, 190, 18), seed=23)
+    a = np.asarray(s.render(exposure=0.9), F)
+    ys, xs = np.mgrid[0:H, 0:W].astype(F)
+    # calm, darker centre behind the logo and spinner
+    d = ((xs / W - 0.5) / 0.36) ** 2 + ((ys / H - 0.47) / 0.42) ** 2
+    a = a * (0.55 + 0.45 * smoothstep(0.2, 1.3, d))[..., None]
+    bg = Image.fromarray(np.clip(np.round(a), 0, 255).astype(np.uint8))
+    pt = ROOT / "config/includes.chroot/usr/share/plymouth/themes/orvanta"
+    br = ROOT / "config/includes.chroot/usr/share/orvanta/branding"
+    save_png(bg, pt / "background.png")
+    save_png(wordmark_png(560, 330), pt / "logo.png")
+    save_png(spinner_png(96), pt / "spinner.png")
+    save_png(wordmark_png(1120, 660), br / "orvanta-wordmark.png")
+    save_png(spinner_png(192), br / "spinner.png")
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--only", choices=["wallpaper", "splash"])
+    ap.add_argument("--only", choices=["wallpaper", "splash", "bootsplash"])
     args = ap.parse_args()
     if args.only in (None, "wallpaper"):
         wallpaper()
     if args.only in (None, "splash"):
         splash()
+    if args.only in (None, "bootsplash"):
+        bootsplash()

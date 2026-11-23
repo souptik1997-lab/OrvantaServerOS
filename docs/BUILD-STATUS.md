@@ -22,7 +22,9 @@
 - [x] Confirm the boot menu and branding in a full CI ISO build (2026-11-23, run 45096429785, commit e01662d)
 - [x] ORVANTA Plasma global theme and wallpaper as the desktop default (2026-11-23, tested on a patched CI ISO in QEMU; see below)
 - [x] Confirm the global theme and artwork in a full CI ISO build (2026-11-23, run 45151505531)
-- [ ] Brand the login screen (SDDM), Plasma startup splash and kernel boot splash
+- [x] Brand the login screen (SDDM), Plasma startup splash and boot splash (2026-11-23, tested on the final ISO with this tree layered in QEMU; see below)
+- [x] GitHub Actions on Node.js 24: `actions/checkout@v7`, `actions/upload-artifact@v7` (2026-11-23)
+- [ ] Confirm login screen and splashes in a full CI ISO build
 - [ ] Design installed-system installer
 - [ ] Implement Control Center and update agent
 
@@ -163,6 +165,69 @@ OVMF, the same tools as above.
 | `scripts/qemu-smoke-test.sh` (sends no key) | UEFI and BIOS both reach the desktop |
 
 Not executed: physical hardware, Secure Boot, the in-session `nft`/`ss` checks.
+
+## Verification record — 2026-11-23: login screen, boot splash, Plasma splash
+
+Changes:
+
+- **Boot splash:** Plymouth theme `orvanta` (script plugin,
+  `/usr/share/plymouth/themes/orvanta/`): rendered space background, ORVANTA
+  wordmark, rotating spinner, text prompts for passphrases/questions and boot
+  messages. The branding hook sets it as default, rebuilds the initramfs and
+  fails the build unless the theme is inside it. `--bootappend-live` now has
+  `quiet splash systemd.show_status=false` (fail-safe entry unchanged, still
+  `nosplash` and full output).
+- **Plasma startup splash:** `contents/splash/Splash.qml` in
+  `org.orvanta.desktop` (darkened wallpaper, wordmark, spinner);
+  `[KSplash] Theme=org.orvanta.desktop`.
+- **Login screen:** `/etc/sddm.conf.d/10-orvanta.conf` selects KDE's Breeze
+  SDDM theme; `breeze/theme.conf.user` sets the ORVANTA wallpaper and
+  wordmark (Breeze shows the logo while the greeter is idle);
+  `/usr/share/sddm/faces/orvanta.face.icon` is the live user's avatar (SDDM
+  cannot read `~/.face.icon` in a mode-700 home). Debian's SDDM theme files
+  are not modified.
+- `sddm.service` drop-in: `After=plymouth-quit.service`.
+- Artwork: `artwork/orvanta-wordmark.svg` (source); `scripts/render-artwork.py
+  --only bootsplash` renders the Plymouth background, logo and spinner and the
+  shared wordmark/spinner PNGs.
+- `validate.sh` cross-checks the Plymouth theme (script, images, callbacks),
+  SDDM paths, the splash QML's files and the kernel command line;
+  `tests/live` checks the selected theme, the `splash` parameter and the SDDM
+  configuration in the running session, and screenshots the greeter (test mode).
+
+Tests (final ISO from run 45151505531 with this tree layered: includes, both
+hooks, the **rebuilt initramfs** and this `--bootappend-live`; QEMU/KVM, no key):
+
+| Check | Result |
+|-------|--------|
+| `scripts/validate.sh` | Passed |
+| Hooks in the image chroot | Passed; `Theme=orvanta`; initramfs contains the theme, `script.so`, label plugin |
+| Boot, UEFI and BIOS, autologin | GRUB menu → ORVANTA boot splash (~12–33 s, spinner turning) → ~10 s black while the display server starts (no text) → ORVANTA Plasma splash → desktop |
+| Boot with `noautologin` (real SDDM greeter) | ORVANTA wallpaper, avatar and "ORVANTA Live user"; idle: clear wallpaper with the ORVANTA wordmark |
+| `tests/live/run-live-test.sh` (`OVERLAY_TREE=1`) | 64 pass, 0 fail; firewall probes 0 reached while on, 10/10 during the control |
+
+![ORVANTA boot splash (Plymouth, QEMU UEFI)](images/bootsplash-plymouth-0.1.png)
+
+![ORVANTA Plasma startup splash](images/plasma-splash-0.1.png)
+
+![ORVANTA login screen (SDDM)](images/login-0.1.png)
+
+![ORVANTA login screen, idle](images/login-idle-0.1.png)
+
+Found and fixed during testing:
+
+- With `quiet` alone, systemd switched its status output back on after a slow
+  start job and printed "[ OK ] …" lines on a black console between the
+  splash and the desktop: fixed with `systemd.show_status=false`.
+- `plymouth quit --retain-splash` (tried to hide that gap) left the **SDDM
+  greeter black**: SDDM's X server kept showing the stale buffer. Bisected:
+  the greeter works without the splash, and with the splash once
+  `--retain-splash` is removed. Not used; `validate.sh` and the hook reject a
+  `plymouth-quit` override.
+
+Limits: the remaining black gap (display server start-up) was measured only in
+QEMU with software rendering; real hardware not tested. Not yet confirmed in a
+full CI ISO build.
 
 ## Verification record — 2026-11-23: final ISO (main, after merging PR #1)
 

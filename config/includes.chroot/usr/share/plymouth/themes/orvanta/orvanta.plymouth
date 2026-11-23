@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=ORVANTA
+Description=ORVANTA OS boot splash: rendered space background, wordmark and spinner
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/orvanta
+ScriptFile=/usr/share/plymouth/themes/orvanta/orvanta.script
