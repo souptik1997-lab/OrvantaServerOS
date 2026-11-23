@@ -14,14 +14,14 @@
 - [ ] Validate Secure Boot behaviour (UEFI boot without Secure Boot works in QEMU)
 - [x] Verify the firewall and listeners in a running session: inbound probes blocked, restore after flush, link-loss recovery (2026-11-23, `tests/live/run-live-test.sh`; `docs/ROBUSTNESS-2026-11-23.md`)
 - [x] In-session storage and access-control tests; fixes for file modes, sysctl hardening, Firewall page, About/Users branding; Control Center 0.1.2 (2026-11-23)
-- [ ] Run `tests/live/run-live-test.sh` on the final CI ISO
+- [x] Run `tests/live/run-live-test.sh` on the final CI ISO: 61 pass, 0 fail (2026-11-23, run 45151505531)
 - [x] Add a Debian 13 CI validation workflow
 - [x] CI workflows pass on GitHub Actions (2026-11-22, PR #1, commit 839116c)
 - [x] Boot menu starts automatically after 5 s (2026-11-23, tested on a patched 0.1 ISO in QEMU; see below)
 - [x] ORVANTA branding on the boot menu and the Plasma Welcome Center (2026-11-23, same test)
 - [x] Confirm the boot menu and branding in a full CI ISO build (2026-11-23, run 45096429785, commit e01662d)
 - [x] ORVANTA Plasma global theme and wallpaper as the desktop default (2026-11-23, tested on a patched CI ISO in QEMU; see below)
-- [ ] Confirm the global theme in a full CI ISO build
+- [x] Confirm the global theme and artwork in a full CI ISO build (2026-11-23, run 45151505531)
 - [ ] Brand the login screen (SDDM), Plasma startup splash and kernel boot splash
 - [ ] Design installed-system installer
 - [ ] Implement Control Center and update agent
@@ -163,6 +163,34 @@ OVMF, the same tools as above.
 | `scripts/qemu-smoke-test.sh` (sends no key) | UEFI and BIOS both reach the desktop |
 
 Not executed: physical hardware, Secure Boot, the in-session `nft`/`ss` checks.
+
+## Verification record — 2026-11-23: final ISO (main, after merging PR #1)
+
+ISO built by GitHub Actions on `main` from merge commit 506a7e5
+([run 45151505531](https://github.com/souptik1997-lab/OrvantaServerOS/actions/runs/45151505531),
+artifact `orvanta-0.1-amd64`, kept until 2026-11-30):
+
+- File: `orvanta-0.1-amd64.hybrid.iso`, 2 999 638 016 bytes
+- SHA-256: `7c04cbb35940859082f3f481ef28cbcbdde7b78186f1fe203772c91f97ab1f28`
+- Packages in image: 2267; kernel `linux-image-6.12.118+deb13-amd64` 6.12.118-1;
+  `orvanta-control-center` 0.1.2
+
+Downloaded and tested on Debian 13 (WSL2), QEMU/KVM, OVMF and SeaBIOS:
+
+| Check | Result |
+|-------|--------|
+| SHA-256 (`sha256sum -c` with the published `.sha256`) | OK |
+| Image contents | GRUB: ORVANTA entries, `timeout=5`; os-release ORVANTA; theme, colour scheme, 4K wallpapers, sysctl hardening, About/Users settings and avatar identical to the repository, all `644 root:root`; no world-writable files in `/etc` or `/usr`; Control Center 0.1.2 installed |
+| Boot menu, UEFI and BIOS, **no key pressed** | Photorealistic ORVANTA background, countdown "executed automatically in 4s", starts by itself |
+| `scripts/qemu-smoke-test.sh` | UEFI and BIOS reach KDE Plasma: ORVANTA wallpaper and theme, branded Welcome Center |
+| `tests/live/run-live-test.sh` (ISO as built, no overlay) | **61 pass, 0 fail.** Firewall on: 0 of 6 host probes reached the guest listener; firewall-off control: 10 of 10 reached; restore after flush, link-loss recovery, storage/LUKS2, unprivileged-user restrictions, sysctl values, ORVANTA panels — see `docs/ROBUSTNESS-2026-11-23.md` |
+
+![ORVANTA boot menu (final ISO, UEFI)](images/grub-menu-uefi-0.1.png)
+
+![ORVANTA desktop (final ISO, UEFI)](images/desktop-final-0.1.png)
+
+Not executed: physical hardware (Intel N150 and another PC), Wi-Fi, Secure
+Boot, an installed system (no installer yet).
 
 ## Verification record — 2026-11-23: Plasma global theme and wallpaper
 
