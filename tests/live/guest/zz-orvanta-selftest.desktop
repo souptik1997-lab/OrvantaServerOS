@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=ORVANTA self-test (test image only)
+Exec=/usr/local/bin/orvanta-selftest
+NoDisplay=true
+X-KDE-autostart-phase=2

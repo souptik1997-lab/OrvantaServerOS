@@ -46,11 +46,54 @@ class HelperTests(unittest.TestCase):
         with mock.patch.object(occ, "read_text", return_value="garbage"):
             self.assertEqual(occ.get_uptime(), "Unavailable")
 
+    def test_firewall_status(self):
+        def fake(states):
+            return lambda verb, unit: states[(verb, unit)]
+        on = {("is-active", "nftables.service"): "active",
+              ("is-enabled", "nftables.service"): "enabled"}
+        with mock.patch.object(occ, "systemctl_state", side_effect=fake(on)):
+            self.assertEqual(occ.get_firewall_status(),
+                             ("On", "nftables · inbound default-deny"))
+        not_at_boot = dict(on); not_at_boot[("is-enabled", "nftables.service")] = "disabled"
+        with mock.patch.object(occ, "systemctl_state", side_effect=fake(not_at_boot)):
+            self.assertEqual(occ.get_firewall_status()[0], "On")
+            self.assertIn("not enabled at boot", occ.get_firewall_status()[1])
+        off = {("is-active", "nftables.service"): "inactive",
+               ("is-enabled", "nftables.service"): "enabled"}
+        with mock.patch.object(occ, "systemctl_state", side_effect=fake(off)):
+            self.assertEqual(occ.get_firewall_status(), ("Off", "nftables.service is inactive"))
+        with mock.patch.object(occ, "systemctl_state", return_value="unknown"):
+            self.assertEqual(occ.get_firewall_status()[0], "Unknown")
+
+    def test_remote_access_status(self):
+        with mock.patch.object(occ, "systemctl_state", return_value="inactive"):
+            self.assertEqual(occ.get_remote_access_status()[0], "Off")
+        running = lambda verb, unit: "active" if unit == "cockpit.socket" else "inactive"
+        with mock.patch.object(occ, "systemctl_state", side_effect=running):
+            self.assertEqual(occ.get_remote_access_status(), ("On", "Running: cockpit"))
+
+    def test_systemctl_unavailable(self):
+        with mock.patch.object(occ.subprocess, "run", side_effect=FileNotFoundError):
+            self.assertEqual(occ.systemctl_state("is-active", "nftables.service"), "unknown")
+
+    def test_desktop_entry_and_icon_match(self):
+        root = Path(__file__).resolve().parents[1]
+        desktop = root / "orvanta-control-center" / "data" / f"{occ.DESKTOP_FILE_NAME}.desktop"
+        self.assertTrue(desktop.is_file())
+        self.assertIn(f"Icon={occ.ICON_NAME}", desktop.read_text().splitlines())
+        # the package icon and the image's branding icon must be the same logo
+        packaged = root / "orvanta-control-center" / "data" / f"{occ.ICON_NAME}.svg"
+        branding = (root / "config" / "includes.chroot" / "usr" / "share" / "icons" /
+                    "hicolor" / "scalable" / "apps" / f"{occ.ICON_NAME}.svg")
+        self.assertEqual(packaged.read_bytes(), branding.read_bytes())
+
     def test_main_window_builds_offscreen(self):
         app = occ.QApplication.instance() or occ.QApplication([])
-        window = occ.MainWindow()
+        with mock.patch.object(occ, "systemctl_state", return_value="inactive"):
+            window = occ.MainWindow()
         self.assertEqual(window.windowTitle(), occ.APP_NAME)
         self.assertEqual(window.nav.count(), 10)
+        self.assertEqual(window.fw_card.value_label.text(), "Off")
         window.timer.stop()
         window.close()
         app.processEvents()

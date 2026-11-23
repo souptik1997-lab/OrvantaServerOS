@@ -1,0 +1,212 @@
+#!/bin/bash
+# Single-quoted sh -c snippets are expanded by the inner shell on purpose,
+# and pass/fail/info always succeed, so "A && pass || fail" is safe.
+# shellcheck disable=SC2016,SC2015
+# ORVANTA live-session robustness test. Runs once, as the live user, from
+# autostart in a TEST-ONLY image layer (never shipped). Writes results and
+# screenshots to the disk labelled ORVRESULT, announces phases on the serial
+# port for the host-side probes, then powers off.
+set -u
+export LC_ALL=C
+R=/mnt/results
+say() { echo "ORVTEST $*" | sudo tee /dev/ttyS0 >/dev/null; }
+log() { echo "$*" | tee -a "$R/selftest.log" >/dev/null; }
+pass() { log "PASS  $1: $2"; }
+fail() { log "FAIL  $1: $2"; }
+info() { log "INFO  $1: $2"; }
+check() { # check <name> <description> <command...> : pass when command succeeds
+    local n=$1 d=$2; shift 2
+    if "$@" >/dev/null 2>&1; then pass "$n" "$d"; else fail "$n" "$d"; fi
+}
+refuse() { # refuse <name> <description> <command...> : pass when command FAILS
+    local n=$1 d=$2; shift 2
+    if "$@" >/dev/null 2>&1; then fail "$n" "$d (was allowed)"; else pass "$n" "$d"; fi
+}
+dump() { local f=$1; shift; { echo "\$ $*"; "$@" 2>&1; echo; } >> "$R/$f"; }
+shot() { # shot <name> <command...>
+    local n=$1; shift
+    "$@" >/dev/null 2>&1 &
+    local pid=$!
+    sleep 14
+    say "SHOT $n"          # the host takes the screenshot (QEMU screendump)
+    sleep 4
+    kill "$pid" 2>/dev/null; pkill -f "$1" 2>/dev/null
+    sleep 2
+}
+
+sleep 50
+sudo mkdir -p "$R"
+sudo mount -o uid="$(id -u)",gid="$(id -g)" LABEL=ORVRESULT "$R" || { say "NO-RESULTS-DISK"; exit 1; }
+: > "$R/selftest.log"
+say "START"
+pkill -f plasma-welcome 2>/dev/null
+log "ORVANTA robustness test $(date -u +%FT%TZ) kernel $(uname -r)"
+grep PRETTY_NAME /etc/os-release | tee -a "$R/selftest.log" >/dev/null
+# keep the session awake (no auto-lock, no display power-off) for the test
+kde-inhibit --power --screenSaver sleep 3000 >/dev/null 2>&1 &
+# ------------------------------------------------------------------ control panels
+log "== Screenshots"
+shot network       systemsettings kcm_networkmanagement
+shot firewall      systemsettings kcm_firewall
+shot users         systemsettings kcm_users
+shot removable     systemsettings kcm_device_automounter
+shot disks         kinfocenter kcm_disks
+shot about         kinfocenter kcm_about-distro
+shot dolphin       dolphin /
+shot controlcenter orvanta-control-center
+shot partitionmgr  partitionmanager
+
+
+# ------------------------------------------------------------------ network
+log "== Network controls"
+dump network.txt sudo nft list ruleset
+dump network.txt sudo ss -tulpn
+dump network.txt ip -br addr
+dump network.txt nmcli general status
+dump network.txt nmcli device status
+check net.fw.service "nftables.service enabled and active" sh -c 'systemctl is-enabled -q nftables && systemctl is-active -q nftables'
+check net.fw.policy "input chain policy is drop" sh -c 'sudo nft list chain inet orvanta_filter input | grep -q "policy drop"'
+for u in cockpit.socket cockpit.service smbd.service nmbd.service samba-ad-dc.service docker.service docker.socket containerd.service; do
+    check "net.masked.$u" "$u masked" sh -c "[ \"\$(systemctl is-enabled $u 2>/dev/null)\" = masked ]"
+done
+refuse net.masked.start "starting cockpit.socket is refused" sudo systemctl start cockpit.socket
+refuse net.ssh "no SSH server installed" sh -c 'command -v sshd'
+check net.dns "DNS resolution works" getent hosts deb.debian.org
+code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 https://deb.debian.org/debian/ 2>/dev/null)
+case "$code" in 2*|3*) pass net.outbound "outbound HTTPS works (HTTP $code)";; *) fail net.outbound "outbound HTTPS (got '$code')";; esac
+listeners=$(ss -Htln | awk '{print $4}' | grep -vE '^(127\.|\[::1\]|::1)' | tr '\n' ' ')
+info net.listeners "TCP listeners not bound to loopback: ${listeners:-none}"
+
+# inbound probe with a real listener on all interfaces
+python3 -m http.server 8080 --bind 0.0.0.0 --directory /usr/share/doc >/dev/null 2>&1 &
+srv=$!
+sleep 2
+check net.listener.local "test listener answers on loopback" curl -s -o /dev/null --max-time 5 http://127.0.0.1:8080/
+say "FW-ON-1"; sleep 35
+sudo nft delete table inet orvanta_filter
+say "FW-OFF"; sleep 35
+sudo systemctl restart nftables
+check net.fw.restore "systemctl restart nftables restores the table" sh -c 'sudo nft list chain inet orvanta_filter input | grep -q "policy drop"'
+say "FW-ON-2"; sleep 35
+kill "$srv" 2>/dev/null
+sudo nft flush ruleset
+sudo systemctl restart nftables
+check net.fw.flush "ruleset restored after 'nft flush ruleset'" sh -c 'sudo nft list chain inet orvanta_filter input | grep -q "policy drop"'
+sudo systemctl restart nftables
+check net.fw.reload "repeated reload keeps exactly one ORVANTA table" sh -c '[ "$(sudo nft list tables | grep -c orvanta_filter)" = 1 ]'
+
+# link loss and recovery (host pulls the virtual cable for 20 s)
+say "LINK-TEST"
+down_seen=0; up_after=0; t0=$(date +%s)
+while [ $(( $(date +%s) - t0 )) -lt 110 ]; do
+    st=$(nmcli -t -f STATE general 2>/dev/null)
+    echo "$(date +%T) $st" >> "$R/link.txt"
+    case "$st" in connected*) [ $down_seen = 1 ] && up_after=1 ;; *) down_seen=1 ;; esac
+    sleep 2
+done
+if [ $down_seen = 1 ] && [ $up_after = 1 ]; then
+    code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 https://deb.debian.org/debian/)
+    case "$code" in 2*|3*) pass net.link "NetworkManager reconnects after link loss; HTTPS works";;
+        *) fail net.link "reconnected but HTTPS failed ($code)";; esac
+else
+    fail net.link "link loss not seen or no recovery (down=$down_seen up=$up_after)"
+fi
+sc() { cat "/proc/sys/$(echo "$1" | tr . /)" 2>/dev/null; }
+for kv in net.ipv4.conf.all.accept_redirects=0 net.ipv4.conf.default.accept_redirects=0 \
+          net.ipv4.conf.all.secure_redirects=0 net.ipv6.conf.all.accept_redirects=0 \
+          net.ipv4.conf.all.send_redirects=0 net.ipv4.conf.all.accept_source_route=0 \
+          net.ipv6.conf.all.accept_source_route=0 net.ipv4.tcp_syncookies=1 \
+          kernel.kptr_restrict=1 kernel.dmesg_restrict=1; do
+    k=${kv%=*}; want=${kv#*=}; got=$(sc "$k")
+    [ "$got" = "$want" ] && pass "sysctl.$k" "= $got" || fail "sysctl.$k" "= '$got', expected $want"
+done
+refuse sysctl.dmesg.user "unprivileged dmesg refused" dmesg
+for k in net.ipv4.conf.all.rp_filter kernel.unprivileged_bpf_disabled kernel.yama.ptrace_scope \
+         fs.protected_symlinks fs.protected_hardlinks fs.protected_fifos fs.protected_regular; do
+    info "sysctl.$k" "$(sc "$k")"
+done
+
+# ------------------------------------------------------------------ storage
+log "== Storage controls"
+dump storage.txt lsblk -o NAME,SIZE,TYPE,FSTYPE,LABEL,MOUNTPOINTS
+dump storage.txt findmnt -rno TARGET,SOURCE,FSTYPE,OPTIONS
+dump storage.txt swapon --show
+dump storage.txt df -h /
+H=/dev/disk/by-label/HOSTDATA
+S=/dev/disk/by-id/virtio-SCRATCH
+refuse st.noautomount "internal disk (HOSTDATA) not mounted automatically" sh -c "findmnt -S $H"
+refuse st.noswap "local swap partition not activated" sh -c '[ -n "$(swapon --noheadings --show)" ]'
+refuse st.medium.ro "live medium is read-only" sh -c 'sudo touch /run/live/medium/orvanta-write-test'
+check st.udisks.user "active user can mount a disk via udisks (desktop behaviour)" udisksctl mount -b "$H" --no-user-interaction
+m=$(findmnt -nro TARGET -S "$H")
+check st.hostdata.read "file on the internal disk readable" test -s "$m/keep-me.txt"
+check st.udisks.unmount "unmount via udisks" udisksctl unmount -b "$H" --no-user-interaction
+sudo parted -s "$S" mklabel gpt mkpart data ext4 1MiB 50% mkpart secret 50% 100% >/dev/null 2>&1
+sudo udevadm settle
+P1=${S}-part1; P2=${S}-part2
+check st.mkfs "partition and ext4 format" sudo mkfs.ext4 -q -F -L SCRATCH "$P1"
+sudo udevadm settle
+check st.mount "mount new filesystem via udisks" udisksctl mount -b "$P1" --no-user-interaction
+m=$(findmnt -nro TARGET -S "$P1")
+sudo chown "$(id -u)" "$m"
+dd if=/dev/urandom of="$m/blob" bs=1M count=200 status=none
+sum1=$(sha256sum "$m/blob" | cut -d' ' -f1); sync
+udisksctl unmount -b "$P1" --no-user-interaction >/dev/null
+udisksctl mount -b "$P1" --no-user-interaction >/dev/null
+m=$(findmnt -nro TARGET -S "$P1")
+sum2=$(sha256sum "$m/blob" | cut -d' ' -f1)
+[ "$sum1" = "$sum2" ] && pass st.integrity "200 MB written, remounted, checksum identical" || fail st.integrity "checksum differs"
+udisksctl unmount -b "$P1" --no-user-interaction >/dev/null
+check st.fsck "fsck clean after unmount" sudo e2fsck -fn "$P1"
+printf 'orvanta-test-passphrase' > /tmp/k
+check st.luks.format "LUKS2 encrypted volume created" sudo cryptsetup luksFormat --type luks2 --batch-mode --key-file /tmp/k "$P2"
+check st.luks.open "LUKS2 volume opened with key" sudo cryptsetup open --key-file /tmp/k "$P2" orvsecret
+sudo mkfs.ext4 -q /dev/mapper/orvsecret && sudo mkdir -p /mnt/sec && sudo mount /dev/mapper/orvsecret /mnt/sec \
+  && echo secret | sudo tee /mnt/sec/s >/dev/null && sudo umount /mnt/sec
+check st.luks.close "LUKS2 volume closed" sudo cryptsetup close orvsecret
+refuse st.luks.wrongkey "wrong passphrase rejected" sh -c "printf wrong | sudo cryptsetup open --key-file - $P2 bad"
+check st.luks.header "LUKS2 header readable" sh -c "sudo cryptsetup luksDump $P2 | grep -q 'Version:.*2'"
+rm -f /tmp/k
+
+# ------------------------------------------------------------------ access
+log "== Access controls"
+check ac.fullname "live user is named 'ORVANTA Live user'" sh -c '[ "$(getent passwd "$(id -un)" | cut -d: -f5 | cut -d, -f1)" = "ORVANTA Live user" ]'
+check ac.face "ORVANTA avatar in the home directory" cmp -s "$HOME/.face" /etc/skel/.face
+check ui.about "About this System configured with the ORVANTA logo" grep -qx 'LogoPath=orvanta' /etc/xdg/kcm-about-distrorc
+check ui.cc.version "Control Center 0.1.2 installed" sh -c 'dpkg-query -W -f="\${Version}" orvanta-control-center | grep -qx 0.1.2'
+check ui.cc.firewall "Control Center reports the firewall as On" python3 -c 'import importlib.util as u, importlib.machinery as im; l=im.SourceFileLoader("c","/usr/bin/orvanta-control-center"); m=u.module_from_spec(u.spec_from_loader("c",l)); l.exec_module(m); assert m.get_firewall_status()[0]=="On"'
+dump access.txt id
+dump access.txt sudo -l
+info ac.user "$(id)"
+check ac.root.locked "root password locked" sh -c 'sudo passwd -S root | grep -qE "^root (L|NP)"'
+if sudo -n true 2>/dev/null; then info ac.sudo.live "live user has passwordless sudo (live-config default; documented)"; fi
+sudo useradd -m -s /bin/bash tester 2>/dev/null
+T() { sudo -n -u tester "$@"; }
+refuse ac.shadow "unprivileged user cannot read /etc/shadow" T cat /etc/shadow
+refuse ac.sudo "unprivileged user cannot use sudo" T sudo -n true
+refuse ac.nft "unprivileged user cannot read or change the firewall" T nft list ruleset
+refuse ac.home "unprivileged user cannot read the live user's home" T ls "/home/$(id -un)"
+refuse ac.etc "unprivileged user cannot write /etc" T touch /etc/orvanta-x
+refuse ac.systemctl "unprivileged user cannot stop the firewall" T systemctl --no-ask-password stop nftables
+refuse ac.udisks "unprivileged (inactive) user cannot mount disks" T udisksctl mount -b "$P1" --no-user-interaction
+refuse ac.nm "unprivileged user cannot change system network settings" T nmcli --ask no connection add type dummy ifname orvx0 con-name orvx0
+sudo nmcli connection delete orvx0 >/dev/null 2>&1
+info ac.home.mode "$(stat -c '%n %a %U' "/home/$(id -un)" /home/tester)"
+ww=$(sudo find / -xdev \( -path /proc -o -path /sys -o -path /dev -o -path /run -o -path /tmp -o -path /var/tmp -o -path /mnt -o -path /media \) -prune -o -type f -perm -0002 -print 2>/dev/null | head -20)
+[ -z "$ww" ] && pass ac.worldwritable "no world-writable system files" || fail ac.worldwritable "world-writable: $ww"
+dump access.txt sh -c 'sudo find / -xdev -type f -perm -4000 2>/dev/null | sort'
+check ac.apparmor "AppArmor enabled" sudo aa-status --enabled
+dump access.txt sudo aa-status
+info ac.apparmor.profiles "$(sudo aa-status 2>&1 | grep -iE 'profiles are' | tr '\n' ';')"
+for p in /etc/issue /etc/nftables.conf /etc/xdg/kdeglobals /etc/sysctl.d/60-orvanta-hardening.conf \
+         /usr/share/wallpapers/Orvanta/contents/images/3840x2400.jpg; do
+    info ac.mode "$(stat -c '%a %U:%G %n' "$p")"
+done
+sudo userdel -r tester 2>/dev/null
+
+log "== Summary: $(grep -c '^PASS' "$R/selftest.log") pass, $(grep -c '^FAIL' "$R/selftest.log") fail"
+sync
+say "DONE"
+sudo umount "$R"
+sleep 2
+sudo systemctl poweroff

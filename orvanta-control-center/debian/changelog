@@ -1,3 +1,13 @@
+orvanta-control-center (0.1.2) unstable; urgency=low
+
+  * Show firewall (nftables) and remote-access service status on the
+    Overview page (read-only, via systemctl; no privileges).
+  * Set the desktop file name and window icon so Plasma shows the ORVANTA
+    icon on Wayland instead of a generic one.
+  * Ship the current ORVANTA logo as the application icon.
+
+ -- ORVANTA Project <maintainers@example.invalid>  Mon, 23 Nov 2026 00:00:00 +0000
+
 orvanta-control-center (0.1.1) unstable; urgency=low
 
   * Pass command-line arguments to QApplication.

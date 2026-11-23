@@ -14,7 +14,8 @@ Architecture: all
 Depends: ${misc:Depends}, python3, python3-pyside6.qtwidgets
 Description: ORVANTA graphical system overview
  Read-only Qt dashboard for ORVANTA OS that shows the distribution name,
- hostname, load average, memory use, root filesystem use and uptime.
+ hostname, load average, memory use, root filesystem use, uptime, and
+ whether the nftables firewall and remote-access services are running.
  .
  This is a development prototype: it never changes system state and has no
  privileged backend. Administrative modules are placeholders.

@@ -12,7 +12,9 @@
 - [x] Inspect the published ISO offline: checksum, boot records, firewall, masked services (2026-11-23)
 - [ ] Boot-test on physical x86-64 hardware (Intel N150 target and one other PC)
 - [ ] Validate Secure Boot behaviour (UEFI boot without Secure Boot works in QEMU)
-- [ ] Verify the firewall and listeners in a running session (`nft list ruleset`, `ss -tlnp`)
+- [x] Verify the firewall and listeners in a running session: inbound probes blocked, restore after flush, link-loss recovery (2026-11-23, `tests/live/run-live-test.sh`; `docs/ROBUSTNESS-2026-11-23.md`)
+- [x] In-session storage and access-control tests; fixes for file modes, sysctl hardening, Firewall page, About/Users branding; Control Center 0.1.2 (2026-11-23)
+- [ ] Run `tests/live/run-live-test.sh` on the final CI ISO
 - [x] Add a Debian 13 CI validation workflow
 - [x] CI workflows pass on GitHub Actions (2026-11-22, PR #1, commit 839116c)
 - [x] Boot menu starts automatically after 5 s (2026-11-23, tested on a patched 0.1 ISO in QEMU; see below)
@@ -172,8 +174,9 @@ Changes (all in `config/includes.chroot/`):
   window decoration, `breeze-dark` icons, KDE's default panel layout, previews.
 - `usr/share/color-schemes/OrvantaDark.colors` — navy backgrounds, ORVANTA
   blue (#1f8fd6) selection and cyan (#5ee7f5) accents.
-- `usr/share/wallpapers/Orvanta/` — SVG wallpaper (16:9 and 16:10), limited
-  to features Qt's SVG renderer supports.
+- `usr/share/wallpapers/Orvanta/` — photorealistic wallpaper, 3840×2400
+  (16:10) and 3840×2160 (16:9) JPEG, rendered by `scripts/render-artwork.py`
+  (see "Artwork" below).
 - `etc/xdg/kdeglobals` — `LookAndFeelPackage=org.orvanta.desktop`. Debian's
   desktop-base selects "Debian Breeze" from `/usr/share/desktop-base/kf5-settings`,
   which comes after `/etc/xdg` in `XDG_CONFIG_DIRS`; Plasma applies the
@@ -188,7 +191,6 @@ Tests (Debian 13 WSL2, QEMU/KVM):
 | Check | Result |
 |-------|--------|
 | `scripts/validate.sh` (branding checks required) | Passed |
-| Wallpaper rendered with Qt's `QSvgRenderer` and `rsvg-convert` | Both sizes render |
 | Branding hook on the CI ISO's root filesystem plus the new files | Passed |
 | CI ISO from e01662d plus the theme files as an extra `/live/*.squashfs` layer, UEFI and BIOS, **no key pressed** | Desktop shows the ORVANTA wallpaper, navy windows and title bars, dark panel; Welcome Center still ORVANTA-branded |
 
@@ -196,7 +198,30 @@ Tests (Debian 13 WSL2, QEMU/KVM):
 
 Limits: patched ISO, not a fresh `lb build` (that is the next CI run). Only
 the first-login defaults were checked; switching themes in System Settings
-and the lock screen were not exercised.
+and the lock screen were not exercised. (This test used the first, vector
+wallpaper; the rendered artwork below replaced it the same day.)
+
+### Artwork
+
+`scripts/render-artwork.py` (numpy + Pillow; Debian `python3-numpy
+python3-pil`) renders the wallpaper and the GRUB background with a small
+deterministic ray tracer: a ringed ice giant and its moon in front of a
+nebula and star field, with soft-terminator lighting, limb darkening,
+atmospheric scattering, translucent rings with ringlets and gaps, depth
+order and shadows between planet and rings, star point-spread functions and
+diffraction spikes, bloom, filmic tone mapping, vignette and grain. Fixed
+seeds, so a re-run gives the same images. The outputs are committed; the
+build does not run the renderer.
+
+- Wallpaper: `3840x2400.jpg` and `3840x2160.jpg` (Plasma picks by aspect ratio).
+- GRUB: `config/bootloaders/grub-pc/splash.svg` embeds the rendered 800×600
+  background as a JPEG; the ORVANTA logo and text stay vector, and the lower
+  half is kept dark for the menu. live-build still renders the SVG to
+  `splash.png`.
+- The ORVANTA logo (`orvanta.svg`) stays flat: it is also the application and
+  Welcome Center icon and must stay legible at 16–48 px.
+- `scripts/validate.sh` checks the JPEG sizes against their names and that
+  `splash.svg` embeds a valid 800×600 JPEG.
 
 ## Verification record — 2026-11-19
 

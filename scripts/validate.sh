@@ -7,7 +7,8 @@ SHELL_SCRIPTS="auto/build auto/clean auto/config scripts/build.sh scripts/check-
 scripts/check-packages.sh scripts/clean.sh scripts/qemu-smoke-test.sh scripts/validate.sh \
 windows/bootstrap-and-build.sh \
 config/hooks/normal/0100-orvanta-live-hardening.hook.chroot \
-config/hooks/normal/0200-orvanta-branding.hook.chroot"
+config/hooks/normal/0200-orvanta-branding.hook.chroot \
+tests/live/run-live-test.sh tests/live/guest/orvanta-selftest"
 
 echo "== Executable bits"
 for f in $SHELL_SCRIPTS orvanta-control-center/debian/rules orvanta-control-center/src/orvanta_control_center.py; do
@@ -27,7 +28,8 @@ echo "== ShellCheck"
 shellcheck $SHELL_SCRIPTS
 
 echo "== Python syntax"
-python3 -m py_compile orvanta-control-center/src/orvanta_control_center.py tests/test_control_center.py
+python3 -m py_compile orvanta-control-center/src/orvanta_control_center.py tests/test_control_center.py \
+    scripts/render-artwork.py
 
 echo "== Python unit tests"
 QT_QPA_PLATFORM=offscreen python3 -m unittest discover -s tests -v
@@ -48,8 +50,7 @@ need_tool() {
 tmp_brand="$(mktemp -d)"
 if need_tool rsvg-convert; then
     for svg in config/bootloaders/grub-pc/splash.svg \
-               config/includes.chroot/usr/share/icons/hicolor/scalable/apps/orvanta.svg \
-               config/includes.chroot/usr/share/wallpapers/Orvanta/contents/images/*.svg; do
+               config/includes.chroot/usr/share/icons/hicolor/scalable/apps/orvanta.svg; do
         # Same conversion live-build runs for the GRUB background.
         rsvg-convert --format png --width 800 --height 600 "$svg" -o "$tmp_brand/out.png"
         [ -s "$tmp_brand/out.png" ] || { echo "ERROR: $svg did not render"; exit 1; }
@@ -61,10 +62,36 @@ echo "== Plasma global theme"
 # Cross-checks the ORVANTA look-and-feel package, colour scheme, wallpaper
 # and the /etc/xdg/kdeglobals entry that selects them.
 python3 - <<'PY'
-import configparser, json, pathlib, re, sys
+import base64, configparser, json, pathlib, re, struct, sys
 root = pathlib.Path("config/includes.chroot")
 lnf = root / "usr/share/plasma/look-and-feel/org.orvanta.desktop"
 errors = []
+
+def jpeg_size(data):
+    """(width, height) from a baseline/progressive JPEG's SOF marker."""
+    if data[:2] != b"\xff\xd8":
+        return None
+    i = 2
+    while i + 9 < len(data):
+        if data[i] != 0xFF:
+            return None
+        marker, seglen = data[i + 1], struct.unpack(">H", data[i + 2:i + 4])[0]
+        if marker in (0xC0, 0xC1, 0xC2):
+            h, w = struct.unpack(">HH", data[i + 5:i + 9])
+            return w, h
+        i += 2 + seglen
+    return None
+
+# Rendered artwork (scripts/render-artwork.py): wallpaper JPEGs named WxH, and
+# the GRUB background embedded in splash.svg at live-build's 800x600.
+for img in (root / "usr/share/wallpapers/Orvanta/contents/images").iterdir():
+    m = re.fullmatch(r"(\d+)x(\d+)\.jpg", img.name)
+    if not m or jpeg_size(img.read_bytes()) != (int(m.group(1)), int(m.group(2))):
+        errors.append(f"{img}: not a JPEG matching its WxH name")
+splash = pathlib.Path("config/bootloaders/grub-pc/splash.svg").read_text()
+emb = re.search(r'href="data:image/jpeg;base64,([A-Za-z0-9+/=]+)"', splash)
+if not emb or jpeg_size(base64.b64decode(emb.group(1))) != (800, 600):
+    errors.append("splash.svg: embedded 800x600 JPEG background missing or invalid")
 meta = json.loads((lnf / "metadata.json").read_text())
 if meta.get("KPackageStructure") != "Plasma/LookAndFeel" or meta["KPlugin"]["Id"] != lnf.name:
     errors.append("look-and-feel metadata.json: wrong KPackageStructure or Id")
@@ -93,7 +120,7 @@ else:
                 errors.append(f"{colors}: [{sec}] {k}={v!r}")
     wdir = root / f"usr/share/wallpapers/{wall.group(1)}"
     wmeta = json.loads((wdir / "metadata.json").read_text())
-    if wmeta["KPlugin"]["Id"] != wall.group(1) or not list((wdir / "contents/images").glob("*.svg")):
+    if wmeta["KPlugin"]["Id"] != wall.group(1) or not list((wdir / "contents/images").glob("*.jpg")):
         errors.append(f"{wdir}: Id mismatch or no images")
 if not (lnf / "contents/layouts/org.kde.plasma.desktop-layout.js").is_file():
     errors.append("layout script missing")
@@ -104,6 +131,18 @@ if errors:
     print("\n".join("ERROR: " + e for e in errors)); sys.exit(1)
 print("org.orvanta.desktop: metadata, defaults, colour scheme, wallpaper and kdeglobals consistent")
 PY
+
+echo "== Kernel hardening (sysctl.d)"
+sysctl_conf=config/includes.chroot/etc/sysctl.d/60-orvanta-hardening.conf
+grep -vE '^[[:space:]]*(#|$)' "$sysctl_conf" | while IFS= read -r line; do
+    case "$line" in
+        *" = "*) ;;
+        *) echo "ERROR: $sysctl_conf: not 'key = value': $line"; exit 1 ;;
+    esac
+    key=${line%% = *}
+    [ -e "/proc/sys/$(echo "$key" | tr . /)" ] || { echo "ERROR: unknown sysctl $key"; exit 1; }
+done
+echo "$sysctl_conf: all keys exist"
 
 echo "== Boot menu (GRUB)"
 grub_dir=config/bootloaders/grub-pc

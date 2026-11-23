@@ -9,11 +9,12 @@ import os
 import sys
 import shutil
 import socket
+import subprocess
 import time
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import (
     QApplication, QFrame, QGridLayout, QHBoxLayout, QLabel, QListWidget,
     QListWidgetItem, QMainWindow, QPushButton, QProgressBar, QVBoxLayout,
@@ -21,6 +22,12 @@ from PySide6.QtWidgets import (
 )
 
 APP_NAME = "ORVANTA Control Center"
+# Must match data/orvanta-control-center.desktop so Plasma (Wayland app_id)
+# associates the window with its desktop entry and icon.
+DESKTOP_FILE_NAME = "orvanta-control-center"
+ICON_NAME = "orvanta"
+# Remote-administration and file-sharing units the live image masks.
+REMOTE_UNITS = ("cockpit.socket", "smbd.service", "ssh.service")
 
 
 def read_text(path, default="Unavailable"):
@@ -77,6 +84,44 @@ def get_uptime():
         return f"{days}d {hours}h {minutes}m"
     except (ValueError, IndexError):
         return "Unavailable"
+
+
+def systemctl_state(verb, unit):
+    """Return `systemctl <verb> <unit>` output (is-active/is-enabled).
+
+    Read-only and unprivileged; "unknown" if systemctl is unavailable.
+    """
+    try:
+        result = subprocess.run(["systemctl", verb, unit], capture_output=True,
+                                text=True, timeout=3, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return "unknown"
+    return result.stdout.strip() or "unknown"
+
+
+def get_firewall_status():
+    """(value, detail) for the nftables firewall service."""
+    active = systemctl_state("is-active", "nftables.service")
+    enabled = systemctl_state("is-enabled", "nftables.service")
+    if active == "active":
+        detail = "nftables · inbound default-deny"
+        if enabled != "enabled":
+            detail += " · not enabled at boot"
+        return "On", detail
+    if active == "unknown":
+        return "Unknown", "systemctl unavailable"
+    return "Off", f"nftables.service is {active}"
+
+
+def get_remote_access_status():
+    """(value, detail) for remote administration and file sharing."""
+    exposed = []
+    for unit in REMOTE_UNITS:
+        if systemctl_state("is-active", unit) == "active":
+            exposed.append(unit.split(".")[0])
+    if exposed:
+        return "On", "Running: " + ", ".join(exposed)
+    return "Off", "Cockpit, Samba and SSH not running"
 
 
 def card(title, value="—", detail=""):
@@ -174,8 +219,11 @@ class MainWindow(QMainWindow):
         self.uptime_card = card("Uptime", "—", "Since last boot")
         self.os_card = card("Operating system", get_os_name(), "Distribution")
         self.host_card = card("Device", socket.gethostname(), "Hostname")
+        self.fw_card = card("Firewall", "—", "nftables")
+        self.remote_card = card("Remote access", "—", "Administration and sharing")
         cards = [self.cpu_card, self.mem_card, self.disk_card,
-                 self.uptime_card, self.os_card, self.host_card]
+                 self.uptime_card, self.os_card, self.host_card,
+                 self.fw_card, self.remote_card]
         for i, widget in enumerate(cards):
             grid.addWidget(widget, i // 3, i % 3)
         body.addLayout(grid)
@@ -260,11 +308,19 @@ class MainWindow(QMainWindow):
         self.uptime_card.value_label.setText(get_uptime())
         self.os_card.value_label.setText(get_os_name())
         self.host_card.value_label.setText(socket.gethostname())
+        value, detail = get_firewall_status()
+        self.fw_card.value_label.setText(value)
+        self.fw_card.detail_label.setText(detail)
+        value, detail = get_remote_access_status()
+        self.remote_card.value_label.setText(value)
+        self.remote_card.detail_label.setText(detail)
 
 
 def main():
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
+    app.setDesktopFileName(DESKTOP_FILE_NAME)
+    app.setWindowIcon(QIcon.fromTheme(ICON_NAME))
     app.setFont(QFont("Noto Sans", 10))
     window = MainWindow()
     window.show()

@@ -6,7 +6,11 @@ orvanta-control-center \- ORVANTA graphical system overview
 .SH DESCRIPTION
 .B orvanta-control-center
 is a read-only Qt dashboard that shows the distribution name, hostname,
-load average, memory use, root filesystem use and uptime of the local system.
+load average, memory use, root filesystem use and uptime of the local system,
+and whether the nftables firewall and remote-access services (Cockpit, Samba,
+SSH) are running, as reported by
+.BR systemctl (1).
 It does not change system state and must not be run as root.
 .SH SEE ALSO
-.BR os-release (5)
+.BR os-release (5),
+.BR systemctl (1)

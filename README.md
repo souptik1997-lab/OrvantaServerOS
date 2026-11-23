@@ -64,6 +64,18 @@ all build state. On Windows, see `windows/README-WINDOWS.md` (WSL2).
   passwordless sudo, as in every Debian live image. Never leave the live
   session connected to an untrusted network.
 - Automatic updates are off in the live session.
+- Kernel network hardening (`/etc/sysctl.d/60-orvanta-hardening.conf`): no
+  ICMP redirects accepted or sent, no source routing, SYN cookies, kernel
+  pointers and log hidden from unprivileged users.
+- The ORVANTA Control Center shows whether the firewall is on and whether any
+  remote-access service runs. Plasma's own Firewall page is hidden: it only
+  manages ufw/firewalld and would wrongly report the nftables firewall as off.
+- AppArmor is active in the kernel and its profiles are installed, but
+  Debian does not load profiles in a live session on overlayfs; they load on
+  an installed system.
+- In-session test results (firewall probes, link loss, storage, LUKS2,
+  unprivileged-user restrictions) and control-panel screenshots:
+  `docs/ROBUSTNESS-2026-11-23.md`.
 
 ## Automated validation
 
@@ -87,6 +99,9 @@ there until it has actually run.
 1. Optional quick check: `sudo ./scripts/qemu-smoke-test.sh orvanta-0.1-amd64.hybrid.iso`
    boots the ISO in QEMU (UEFI and BIOS) and saves screenshots. QEMU is only a
    test tool here; ORVANTA itself needs no VM.
+   `sudo ./tests/live/run-live-test.sh orvanta-0.1-amd64.hybrid.iso` runs the
+   full in-session robustness test (about 10 minutes) on a copy of the ISO
+   with a test-only layer, and screenshots the control panels.
 2. Test in a disposable test machine or spare PC.
 3. Boot from USB using UEFI. The ORVANTA boot menu starts the live system
    automatically after 5 seconds; press any arrow key to stop the countdown.
@@ -101,7 +116,8 @@ there until it has actually run.
   `/etc/os-release` (`NAME="ORVANTA OS"`, `ID_LIKE=debian`; Debian's own
   `/usr/lib/os-release` is unchanged) and the desktop: the default Plasma
   global theme is "ORVANTA" (`org.orvanta.desktop`: ORVANTA Dark colours, the
-  ORVANTA wallpaper, Breeze widgets and icons). The login screen (SDDM), the
+  photorealistic ORVANTA wallpaper rendered by `scripts/render-artwork.py`,
+  Breeze widgets and icons). The login screen (SDDM), the
   Plasma startup splash and the kernel boot splash are still KDE/Debian
   defaults. The Control Center is a read-only prototype.
 - Automatic updates are not activated in the live session. The installed-system update policy will be implemented and tested separately.

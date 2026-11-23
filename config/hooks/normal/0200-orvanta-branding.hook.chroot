@@ -39,8 +39,12 @@ test -s /usr/share/plasma/look-and-feel/org.orvanta.desktop/metadata.json
 test -s /usr/share/plasma/look-and-feel/org.orvanta.desktop/contents/defaults
 test -s /usr/share/color-schemes/OrvantaDark.colors
 test -s /usr/share/wallpapers/Orvanta/metadata.json
-test -s /usr/share/wallpapers/Orvanta/contents/images/1920x1080.svg
+test -s /usr/share/wallpapers/Orvanta/contents/images/3840x2160.jpg
 grep -qx 'LookAndFeelPackage=org.orvanta.desktop' /etc/xdg/kdeglobals
+# "About this System" logo/version, live user name and avatar (includes).
+grep -qx 'LogoPath=orvanta' /etc/xdg/kcm-about-distrorc
+grep -q '^LIVE_USER_FULLNAME="ORVANTA Live user"$' /etc/live/config.conf.d/orvanta.conf
+test -s /etc/skel/.face
 # Plasma reads the theme as a package; an existing desktop-base
 # /etc/xdg/plasma-workspace/env/env.sh must still list /etc/xdg first.
 if [ -f /etc/xdg/plasma-workspace/env/env.sh ]; then
