@@ -8,7 +8,7 @@ then powers off). No key is pressed at any point.
 
 Image under test: the CI ISO from commit e01662d (run 45096429785) with this
 branch's changes layered on top (`OVERLAY_TREE=1`: includes, both chroot
-hooks, Control Center 0.1.2). The same harness is to be run on the final CI
+hooks, Control Center 0.1.2). The same harness was then run on the final CI
 ISO (run 45151505531, no overlay): 61 pass, 0 fail; see `BUILD-STATUS.md`.
 
 Extra hardware given to the VM: a blank 2 GB disk (scratch), a 1 GB
