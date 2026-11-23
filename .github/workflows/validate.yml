@@ -24,11 +24,12 @@ jobs:
           apt-get update
           DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             build-essential ca-certificates debhelper debian-archive-keyring devscripts \
-            desktop-file-utils git lintian live-build nftables python3 \
+            desktop-file-utils git grub-common librsvg2-bin lintian live-build nftables python3 \
             python3-pyside6.qtwidgets shellcheck
-      - name: Static checks (shell, Python, unit tests, desktop entry, firewall, live-build config)
+      - name: Static checks (shell, Python, unit tests, desktop entries, branding, GRUB, firewall, live-build config)
         env:
           ORVANTA_REQUIRE_NFT: "1"
+          ORVANTA_REQUIRE_BRANDING: "1"
         run: ./scripts/validate.sh
       - name: Verify Debian 13 package availability (main contrib non-free-firmware)
         run: ./scripts/check-packages.sh

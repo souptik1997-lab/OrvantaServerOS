@@ -15,7 +15,10 @@
 - [ ] Verify the firewall and listeners in a running session (`nft list ruleset`, `ss -tlnp`)
 - [x] Add a Debian 13 CI validation workflow
 - [x] CI workflows pass on GitHub Actions (2026-11-22, PR #1, commit 839116c)
-- [ ] Add ORVANTA desktop branding
+- [x] Boot menu starts automatically after 5 s (2026-11-23, tested on a patched 0.1 ISO in QEMU; see below)
+- [x] ORVANTA branding on the boot menu and the Plasma Welcome Center (2026-11-23, same test)
+- [ ] Confirm the boot menu and branding in a full CI ISO build
+- [ ] Add ORVANTA desktop branding beyond that (Plasma theme, wallpaper, login, boot splash)
 - [ ] Design installed-system installer
 - [ ] Implement Control Center and update agent
 
@@ -94,6 +97,42 @@ files, not yet inside a running session.
 
 Not executed: physical hardware, UEFI/Secure Boot, the
 installed-system path (no installer exists yet).
+
+## Verification record — 2026-11-23: boot menu timeout and branding
+
+Changes:
+
+- `config/bootloaders/grub-pc/` overrides live-build's GRUB templates (used
+  for both BIOS and UEFI): `config.cfg` adds `set timeout=5`; `grub.cfg` names
+  the entries "Start ORVANTA OS" / "Start ORVANTA OS (fail-safe mode)" with the
+  same kernel, initrd and boot parameters live-build generated before;
+  `splash.svg` (rendered by live-build to `splash.png`) and
+  `live-theme/theme.txt` give the ORVANTA background, colours and countdown bar.
+- Plasma Welcome Center: `/usr/share/plasma/plasma-welcome/intro-customization.desktop`
+  (intro text, logo, caption, link) and the logo
+  `/usr/share/icons/hicolor/scalable/apps/orvanta.svg`.
+- `config/hooks/normal/0200-orvanta-branding.hook.chroot` writes
+  `/etc/os-release` as ORVANTA OS 0.1 (`ID=orvanta`, `ID_LIKE=debian`,
+  `LOGO=orvanta`), keeping live-build's `IMAGE_ID`/`BUILD_ID`. Debian's
+  `/usr/lib/os-release` is not modified; the hook fails the build if it is no
+  longer Debian's.
+
+Tests (Debian 13 WSL2, QEMU 10.0.13/KVM):
+
+| Check | Result |
+|-------|--------|
+| `scripts/validate.sh` with the new checks (both SVGs render with `rsvg-convert`; both GRUB files parse with `grub-script-check` after placeholder substitution; `desktop-file-validate` on the Welcome file; ShellCheck on the new hook) | Passed |
+| Branding hook in a trixie chroot | Passed: os-release replaced, `IMAGE_ID`/`BUILD_ID` kept, `/usr/lib/os-release` still Debian |
+| Boot test on the 0.1 ISO with the new GRUB files and a branding layer added (GRUB files filled in with live-build's substitutions; Welcome files and the hook's os-release as an extra `/live/*.squashfs` layer), **no key pressed** | UEFI and BIOS: ORVANTA menu with countdown "executed automatically in 4s…", kernel starts by itself, KDE Plasma reached; Welcome Center shows the ORVANTA text, logo and "Learn more about ORVANTA OS" |
+
+![ORVANTA boot menu with countdown (UEFI, QEMU)](images/grub-menu-uefi-0.1.png)
+
+![Plasma Welcome Center with ORVANTA branding (QEMU)](images/welcome-center-branding-0.1.png)
+
+Limits: this was a patched copy of the 0.1 ISO, not a fresh `lb build`; the
+full build is checked by `build-iso.yml` on PR #1. In BIOS mode the menu is
+drawn at 640×480 (live-build's font fallback, unchanged), and GRUB prints
+live-build's existing `unicode.pf2 not found` message before it.
 
 ## Verification record — 2026-11-19
 

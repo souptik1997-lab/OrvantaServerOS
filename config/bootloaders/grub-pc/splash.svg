@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ORVANTA GRUB background. live-build fills the @...@ fields and renders it
+     to boot/grub/splash.png (800x600). The menu is drawn over the lower half
+     (live-theme/theme.txt), so artwork stays in the upper 45 %.
+     SPDX-License-Identifier: MIT -->
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480" viewBox="0 0 640 480">
+  <defs>
+    <radialGradient id="bg" cx="0.5" cy="0.25" r="0.85">
+      <stop offset="0" stop-color="#16406f"/>
+      <stop offset="1" stop-color="#07142a"/>
+    </radialGradient>
+    <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5ee7f5"/>
+      <stop offset="1" stop-color="#1f8fd6"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="480" fill="url(#bg)"/>
+  <g transform="translate(320 92)">
+    <ellipse rx="66" ry="25" fill="none" stroke="#2bb5c8" stroke-opacity="0.45"
+             stroke-width="4" transform="rotate(-28)"/>
+    <circle r="39" fill="none" stroke="url(#ring)" stroke-width="15"/>
+    <circle cx="51" cy="-27" r="8.5" fill="#5ee7f5"/>
+  </g>
+  <text x="320" y="182" text-anchor="middle" font-family="DejaVu Sans" font-weight="bold"
+        font-size="38" letter-spacing="9" fill="#ffffff">ORVANTA</text>
+  <text x="320" y="208" text-anchor="middle" font-family="DejaVu Sans" font-size="13"
+        letter-spacing="3" fill="#8fb4d9">OS @VERSION@ · LIVE · DEBIAN 13 BASE</text>
+  <rect x="200" y="226" width="240" height="1" fill="#2bb5c8" fill-opacity="0.5"/>
+</svg>

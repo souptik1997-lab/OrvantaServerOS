@@ -1,8 +1,8 @@
 #!/bin/sh
 # Boot smoke test of an ORVANTA ISO in QEMU, in UEFI and BIOS mode.
-# Presses Enter at the boot menu and saves screenshots (PNG) at ~12 s, ~60 s
-# and ~3 min. This shows whether the image reaches the desktop; it is not a
-# hardware, Secure Boot or performance test.
+# Sends no key: the boot menu must start the system by itself (5 s timeout).
+# Saves screenshots (PNG) at ~12 s, ~60 s and ~3 min. This shows whether the
+# image reaches the desktop; it is not a hardware, Secure Boot or performance test.
 #
 # Usage (root, on Debian 13 with qemu-system-x86, ovmf, python3-pyside6.qtgui):
 #   ./scripts/qemu-smoke-test.sh orvanta-0.1-amd64.hybrid.iso [output-dir]
@@ -26,7 +26,7 @@ im = QImage(sys.argv[1]); im.save(sys.argv[2]); print(sys.argv[2], im.width(), "
 run() { # $1 = name, remaining args = firmware options
     name=$1; shift
     # shellcheck disable=SC2086 # $ACCEL holds several options
-    ( sleep 12; echo "screendump $work/$name-1.ppm"; echo "sendkey ret"
+    ( sleep 12; echo "screendump $work/$name-1.ppm"
       sleep 45; echo "screendump $work/$name-2.ppm"
       sleep 135; echo "screendump $work/$name-3.ppm"; sleep 2; echo quit ) | \
     timeout 300 qemu-system-x86_64 $ACCEL -m 4096 -smp 4 -machine q35 "$@" \

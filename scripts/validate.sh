@@ -6,7 +6,8 @@ cd "$(dirname "$0")/.."
 SHELL_SCRIPTS="auto/build auto/clean auto/config scripts/build.sh scripts/check-host.sh \
 scripts/check-packages.sh scripts/clean.sh scripts/qemu-smoke-test.sh scripts/validate.sh \
 windows/bootstrap-and-build.sh \
-config/hooks/normal/0100-orvanta-live-hardening.hook.chroot"
+config/hooks/normal/0100-orvanta-live-hardening.hook.chroot \
+config/hooks/normal/0200-orvanta-branding.hook.chroot"
 
 echo "== Executable bits"
 for f in $SHELL_SCRIPTS orvanta-control-center/debian/rules orvanta-control-center/src/orvanta_control_center.py; do
@@ -31,8 +32,50 @@ python3 -m py_compile orvanta-control-center/src/orvanta_control_center.py tests
 echo "== Python unit tests"
 QT_QPA_PLATFORM=offscreen python3 -m unittest discover -s tests -v
 
-echo "== Desktop entry"
+echo "== Desktop entries"
 desktop-file-validate orvanta-control-center/data/orvanta-control-center.desktop
+desktop-file-validate config/includes.chroot/usr/share/plasma/plasma-welcome/intro-customization.desktop
+
+echo "== Branding images"
+# ORVANTA_REQUIRE_BRANDING=1 (CI) makes the rsvg/grub checks mandatory.
+need_tool() {
+    if command -v "$1" >/dev/null 2>&1; then return 0; fi
+    if [ "${ORVANTA_REQUIRE_BRANDING:-0}" = 1 ]; then
+        echo "ERROR: $1 is required"; exit 1
+    fi
+    echo "skipped: $1 not installed"; return 1
+}
+tmp_brand="$(mktemp -d)"
+if need_tool rsvg-convert; then
+    for svg in config/bootloaders/grub-pc/splash.svg \
+               config/includes.chroot/usr/share/icons/hicolor/scalable/apps/orvanta.svg; do
+        # Same conversion live-build runs for the GRUB background.
+        rsvg-convert --format png --width 800 --height 600 "$svg" -o "$tmp_brand/out.png"
+        [ -s "$tmp_brand/out.png" ] || { echo "ERROR: $svg did not render"; exit 1; }
+        echo "$svg renders"
+    done
+fi
+
+echo "== Boot menu (GRUB)"
+grub_dir=config/bootloaders/grub-pc
+grep -qx 'set timeout=5' "$grub_dir/config.cfg" || { echo "ERROR: GRUB timeout is not 5 s"; exit 1; }
+for marker in @KERNEL_LIVE@ @INITRD_LIVE@ @APPEND_LIVE@ @LB_BOOTAPPEND_LIVE_FAILSAFE@; do
+    grep -q "$marker" "$grub_dir/grub.cfg" || { echo "ERROR: $marker missing from grub.cfg"; exit 1; }
+done
+if need_tool grub-script-check; then
+    # Fill the live-build placeholders with sample values, then parse.
+    for cfg in "$grub_dir/config.cfg" "$grub_dir/grub.cfg"; do
+        # shellcheck disable=SC2016 # ${iso_path} is GRUB syntax, kept literal
+        sed -e 's|@KERNEL_LIVE@|/live/vmlinuz|g; s|@INITRD_LIVE@|/live/initrd.img|g' \
+            -e 's|@APPEND_LIVE@|boot=live findiso=${iso_path}|g' \
+            -e 's|@LB_BOOTAPPEND_LIVE_FAILSAFE@|boot=live nosplash|g' \
+            -e 's|@APPEND_VERIFY_CHECKSUMS@|boot=live verify-checksums|g' \
+            -e 's|@ENABLE_[A-Z_]*@|false|g' "$cfg" > "$tmp_brand/check.cfg"
+        grub-script-check "$tmp_brand/check.cfg"
+        echo "$cfg parses"
+    done
+fi
+rm -rf "$tmp_brand"
 
 echo "== nftables ruleset syntax"
 # "nft -c" needs CAP_NET_ADMIN (it queries the kernel). CI grants it to the

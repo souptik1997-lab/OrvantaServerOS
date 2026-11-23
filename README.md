@@ -88,7 +88,8 @@ there until it has actually run.
    boots the ISO in QEMU (UEFI and BIOS) and saves screenshots. QEMU is only a
    test tool here; ORVANTA itself needs no VM.
 2. Test in a disposable test machine or spare PC.
-3. Boot from USB using UEFI. The boot menu waits for Enter.
+3. Boot from USB using UEFI. The ORVANTA boot menu starts the live system
+   automatically after 5 seconds; press any arrow key to stop the countdown.
 4. Check KDE, networking, audio, display scaling, Intel Wi-Fi/Ethernet, USB and storage.
 5. Confirm no remote administration services listen: `sudo ss -tlnp` and `sudo nft list ruleset`.
 6. Do not use this prototype as a production server or store important data on it.
@@ -96,7 +97,11 @@ there until it has actually run.
 ## Current limitations
 
 - This is a live ISO prototype; it is not yet a polished installed-system installer.
-- ORVANTA branding is minimal; the Control Center is a read-only prototype.
+- ORVANTA branding covers the boot menu, the Plasma Welcome Center, the logo
+  and `/etc/os-release` (`NAME="ORVANTA OS"`, `ID_LIKE=debian`; Debian's own
+  `/usr/lib/os-release` is unchanged). The Plasma theme, wallpaper, login and
+  boot splash are still KDE/Debian defaults. The Control Center is a read-only
+  prototype.
 - Automatic updates are not activated in the live session. The installed-system update policy will be implemented and tested separately.
 - No custom kernel, custom init system or custom package manager is being introduced.
 - No update rollback guarantee exists yet.
@@ -108,8 +113,9 @@ there until it has actually run.
 - `auto/config` — canonical live-build configuration
 - `auto/build` — build entry point with logging
 - `config/package-lists/` — package selection
-- `config/includes.chroot/` — files included in the live filesystem
-- `config/hooks/normal/` — ORVANTA chroot hooks (live-session hardening)
+- `config/bootloaders/grub-pc/` — ORVANTA GRUB menu, theme, splash and 5 s timeout (BIOS and UEFI)
+- `config/includes.chroot/` — files included in the live filesystem (firewall, logo, Welcome Center text)
+- `config/hooks/normal/` — ORVANTA chroot hooks (live-session hardening, branding)
 - `scripts/` — host checks, build, clean, validation, package checks and QEMU smoke test
 - `orvanta-control-center/` — read-only Control Center and its Debian packaging
 - `tests/` — unit tests
