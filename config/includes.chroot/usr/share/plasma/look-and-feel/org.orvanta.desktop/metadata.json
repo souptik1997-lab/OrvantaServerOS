@@ -1,0 +1,16 @@
+{
+    "KPackageStructure": "Plasma/LookAndFeel",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "ORVANTA Project"
+            }
+        ],
+        "Category": "",
+        "Description": "ORVANTA OS default look: ORVANTA Dark colours and wallpaper with Breeze widgets",
+        "Id": "org.orvanta.desktop",
+        "License": "MIT",
+        "Name": "ORVANTA",
+        "Website": "https://github.com/souptik1997-lab/OrvantaServerOS"
+    }
+}

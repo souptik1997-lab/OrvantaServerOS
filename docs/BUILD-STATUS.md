@@ -18,7 +18,9 @@
 - [x] Boot menu starts automatically after 5 s (2026-11-23, tested on a patched 0.1 ISO in QEMU; see below)
 - [x] ORVANTA branding on the boot menu and the Plasma Welcome Center (2026-11-23, same test)
 - [x] Confirm the boot menu and branding in a full CI ISO build (2026-11-23, run 45096429785, commit e01662d)
-- [ ] Add ORVANTA desktop branding beyond that (Plasma theme, wallpaper, login, boot splash)
+- [x] ORVANTA Plasma global theme and wallpaper as the desktop default (2026-11-23, tested on a patched CI ISO in QEMU; see below)
+- [ ] Confirm the global theme in a full CI ISO build
+- [ ] Brand the login screen (SDDM), Plasma startup splash and kernel boot splash
 - [ ] Design installed-system installer
 - [ ] Implement Control Center and update agent
 
@@ -159,6 +161,42 @@ OVMF, the same tools as above.
 | `scripts/qemu-smoke-test.sh` (sends no key) | UEFI and BIOS both reach the desktop |
 
 Not executed: physical hardware, Secure Boot, the in-session `nft`/`ss` checks.
+
+## Verification record — 2026-11-23: Plasma global theme and wallpaper
+
+Changes (all in `config/includes.chroot/`):
+
+- `usr/share/plasma/look-and-feel/org.orvanta.desktop/` — global theme
+  "ORVANTA": colour scheme ORVANTA Dark, wallpaper ORVANTA, Plasma style
+  `default` (Breeze, which follows the colour scheme), Breeze widgets and
+  window decoration, `breeze-dark` icons, KDE's default panel layout, previews.
+- `usr/share/color-schemes/OrvantaDark.colors` — navy backgrounds, ORVANTA
+  blue (#1f8fd6) selection and cyan (#5ee7f5) accents.
+- `usr/share/wallpapers/Orvanta/` — SVG wallpaper (16:9 and 16:10), limited
+  to features Qt's SVG renderer supports.
+- `etc/xdg/kdeglobals` — `LookAndFeelPackage=org.orvanta.desktop`. Debian's
+  desktop-base selects "Debian Breeze" from `/usr/share/desktop-base/kf5-settings`,
+  which comes after `/etc/xdg` in `XDG_CONFIG_DIRS`; Plasma applies the
+  selected theme's defaults at the first login of a new user, as with Debian's.
+- The branding hook now fails the build if any of these files is missing or
+  if desktop-base's `env.sh` no longer puts `/etc/xdg` first;
+  `scripts/validate.sh` renders the wallpapers and cross-checks the theme
+  metadata, defaults, colour scheme, wallpaper id and `kdeglobals`.
+
+Tests (Debian 13 WSL2, QEMU/KVM):
+
+| Check | Result |
+|-------|--------|
+| `scripts/validate.sh` (branding checks required) | Passed |
+| Wallpaper rendered with Qt's `QSvgRenderer` and `rsvg-convert` | Both sizes render |
+| Branding hook on the CI ISO's root filesystem plus the new files | Passed |
+| CI ISO from e01662d plus the theme files as an extra `/live/*.squashfs` layer, UEFI and BIOS, **no key pressed** | Desktop shows the ORVANTA wallpaper, navy windows and title bars, dark panel; Welcome Center still ORVANTA-branded |
+
+![ORVANTA global theme in the live session (QEMU)](images/plasma-theme-0.1.png)
+
+Limits: patched ISO, not a fresh `lb build` (that is the next CI run). Only
+the first-login defaults were checked; switching themes in System Settings
+and the lock screen were not exercised.
 
 ## Verification record — 2026-11-19
 

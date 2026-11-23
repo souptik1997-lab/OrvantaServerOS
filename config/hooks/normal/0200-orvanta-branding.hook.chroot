@@ -31,3 +31,18 @@ if [ -n "$build_id" ]; then echo "BUILD_ID=$build_id" >> /etc/os-release; fi
 # Plasma Welcome text come from config/includes.chroot; check they arrived.
 test -s /usr/share/icons/hicolor/scalable/apps/orvanta.svg
 test -s /usr/share/plasma/plasma-welcome/intro-customization.desktop
+
+# ORVANTA global theme (org.orvanta.desktop): colour scheme, wallpaper and
+# /etc/xdg/kdeglobals selecting it. /etc/xdg comes before Debian's
+# desktop-base settings in XDG_CONFIG_DIRS, so it replaces "Debian Breeze".
+test -s /usr/share/plasma/look-and-feel/org.orvanta.desktop/metadata.json
+test -s /usr/share/plasma/look-and-feel/org.orvanta.desktop/contents/defaults
+test -s /usr/share/color-schemes/OrvantaDark.colors
+test -s /usr/share/wallpapers/Orvanta/metadata.json
+test -s /usr/share/wallpapers/Orvanta/contents/images/1920x1080.svg
+grep -qx 'LookAndFeelPackage=org.orvanta.desktop' /etc/xdg/kdeglobals
+# Plasma reads the theme as a package; an existing desktop-base
+# /etc/xdg/plasma-workspace/env/env.sh must still list /etc/xdg first.
+if [ -f /etc/xdg/plasma-workspace/env/env.sh ]; then
+    grep -q 'XDG_CONFIG_DIRS=/etc/xdg:' /etc/xdg/plasma-workspace/env/env.sh
+fi

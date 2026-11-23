@@ -1,10 +1,20 @@
 name: Build ORVANTA ISO
 
-# Runs on pull requests that change build inputs, and manually.
+# Runs on pull requests that change build inputs, on pushes to main (the ISO
+# of the merged state), and manually.
 # The build runs in a privileged debian:trixie container on the runner host so
 # the host can first free disk space (a full build needs roughly 20 GB).
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'auto/**'
+      - 'config/**'
+      - 'orvanta-control-center/**'
+      - 'scripts/build.sh'
+      - 'scripts/check-host.sh'
+      - '.github/workflows/build-iso.yml'
   pull_request:
     paths:
       - 'auto/**'

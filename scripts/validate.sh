@@ -48,13 +48,62 @@ need_tool() {
 tmp_brand="$(mktemp -d)"
 if need_tool rsvg-convert; then
     for svg in config/bootloaders/grub-pc/splash.svg \
-               config/includes.chroot/usr/share/icons/hicolor/scalable/apps/orvanta.svg; do
+               config/includes.chroot/usr/share/icons/hicolor/scalable/apps/orvanta.svg \
+               config/includes.chroot/usr/share/wallpapers/Orvanta/contents/images/*.svg; do
         # Same conversion live-build runs for the GRUB background.
         rsvg-convert --format png --width 800 --height 600 "$svg" -o "$tmp_brand/out.png"
         [ -s "$tmp_brand/out.png" ] || { echo "ERROR: $svg did not render"; exit 1; }
         echo "$svg renders"
     done
 fi
+
+echo "== Plasma global theme"
+# Cross-checks the ORVANTA look-and-feel package, colour scheme, wallpaper
+# and the /etc/xdg/kdeglobals entry that selects them.
+python3 - <<'PY'
+import configparser, json, pathlib, re, sys
+root = pathlib.Path("config/includes.chroot")
+lnf = root / "usr/share/plasma/look-and-feel/org.orvanta.desktop"
+errors = []
+meta = json.loads((lnf / "metadata.json").read_text())
+if meta.get("KPackageStructure") != "Plasma/LookAndFeel" or meta["KPlugin"]["Id"] != lnf.name:
+    errors.append("look-and-feel metadata.json: wrong KPackageStructure or Id")
+defaults = (lnf / "contents/defaults").read_text()
+scheme = re.search(r"^\[kdeglobals\]\[General\]\nColorScheme=(\S+)$", defaults, re.M)
+wall = re.search(r"^\[Wallpaper\]\nImage=(\S+)$", defaults, re.M)
+if not scheme or not wall:
+    errors.append("defaults: ColorScheme or Wallpaper Image missing")
+else:
+    colors = root / f"usr/share/color-schemes/{scheme.group(1)}.colors"
+    cp = configparser.ConfigParser(interpolation=None, strict=True)
+    cp.optionxform = str
+    cp.read_string(colors.read_text())
+    if cp.get("General", "ColorScheme", fallback="") != scheme.group(1):
+        errors.append(f"{colors}: [General] ColorScheme does not match its file name")
+    keys = ["BackgroundAlternate", "BackgroundNormal", "DecorationFocus", "DecorationHover",
+            "ForegroundActive", "ForegroundInactive", "ForegroundLink", "ForegroundNegative",
+            "ForegroundNeutral", "ForegroundNormal", "ForegroundPositive", "ForegroundVisited"]
+    for group in ["Button", "Complementary", "Header", "Header][Inactive", "Selection",
+                  "Tooltip", "View", "Window"]:
+        sec = f"Colors:{group}"
+        for k in keys:
+            v = cp.get(sec, k, fallback=None)
+            if v is None or not re.fullmatch(r"\d{1,3},\d{1,3},\d{1,3}", v) \
+                    or max(map(int, v.split(","))) > 255:
+                errors.append(f"{colors}: [{sec}] {k}={v!r}")
+    wdir = root / f"usr/share/wallpapers/{wall.group(1)}"
+    wmeta = json.loads((wdir / "metadata.json").read_text())
+    if wmeta["KPlugin"]["Id"] != wall.group(1) or not list((wdir / "contents/images").glob("*.svg")):
+        errors.append(f"{wdir}: Id mismatch or no images")
+if not (lnf / "contents/layouts/org.kde.plasma.desktop-layout.js").is_file():
+    errors.append("layout script missing")
+kg = (root / "etc/xdg/kdeglobals").read_text()
+if "LookAndFeelPackage=org.orvanta.desktop" not in kg.splitlines():
+    errors.append("/etc/xdg/kdeglobals does not select org.orvanta.desktop")
+if errors:
+    print("\n".join("ERROR: " + e for e in errors)); sys.exit(1)
+print("org.orvanta.desktop: metadata, defaults, colour scheme, wallpaper and kdeglobals consistent")
+PY
 
 echo "== Boot menu (GRUB)"
 grub_dir=config/bootloaders/grub-pc

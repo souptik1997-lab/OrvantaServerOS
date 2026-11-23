@@ -78,7 +78,7 @@ GitHub Actions (`.github/workflows/validate.yml`) runs both scripts in a
 `debian:trixie` container, then builds the Control Center package, runs
 lintian and installs and launches it. A full ISO build is available as a
 workflow (`build-iso.yml`), which also runs on pull requests that change build
-inputs. Verified results are recorded in
+inputs and on pushes to `main`. Verified results are recorded in
 `docs/BUILD-STATUS.md` and `docs/REVIEW-2026-11-22.md`; nothing is claimed
 there until it has actually run.
 
@@ -97,11 +97,13 @@ there until it has actually run.
 ## Current limitations
 
 - This is a live ISO prototype; it is not yet a polished installed-system installer.
-- ORVANTA branding covers the boot menu, the Plasma Welcome Center, the logo
-  and `/etc/os-release` (`NAME="ORVANTA OS"`, `ID_LIKE=debian`; Debian's own
-  `/usr/lib/os-release` is unchanged). The Plasma theme, wallpaper, login and
-  boot splash are still KDE/Debian defaults. The Control Center is a read-only
-  prototype.
+- ORVANTA branding covers the boot menu, the Plasma Welcome Center, the logo,
+  `/etc/os-release` (`NAME="ORVANTA OS"`, `ID_LIKE=debian`; Debian's own
+  `/usr/lib/os-release` is unchanged) and the desktop: the default Plasma
+  global theme is "ORVANTA" (`org.orvanta.desktop`: ORVANTA Dark colours, the
+  ORVANTA wallpaper, Breeze widgets and icons). The login screen (SDDM), the
+  Plasma startup splash and the kernel boot splash are still KDE/Debian
+  defaults. The Control Center is a read-only prototype.
 - Automatic updates are not activated in the live session. The installed-system update policy will be implemented and tested separately.
 - No custom kernel, custom init system or custom package manager is being introduced.
 - No update rollback guarantee exists yet.
@@ -114,7 +116,7 @@ there until it has actually run.
 - `auto/build` — build entry point with logging
 - `config/package-lists/` — package selection
 - `config/bootloaders/grub-pc/` — ORVANTA GRUB menu, theme, splash and 5 s timeout (BIOS and UEFI)
-- `config/includes.chroot/` — files included in the live filesystem (firewall, logo, Welcome Center text)
+- `config/includes.chroot/` — files included in the live filesystem (firewall, logo, Welcome Center text, Plasma global theme, colour scheme, wallpaper)
 - `config/hooks/normal/` — ORVANTA chroot hooks (live-session hardening, branding)
 - `scripts/` — host checks, build, clean, validation, package checks and QEMU smoke test
 - `orvanta-control-center/` — read-only Control Center and its Debian packaging
