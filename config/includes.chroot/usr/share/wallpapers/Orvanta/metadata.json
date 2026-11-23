@@ -1,0 +1,12 @@
+{
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "ORVANTA Project"
+            }
+        ],
+        "Id": "Orvanta",
+        "License": "MIT",
+        "Name": "ORVANTA"
+    }
+}

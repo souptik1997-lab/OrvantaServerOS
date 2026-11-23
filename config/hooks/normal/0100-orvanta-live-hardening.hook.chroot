@@ -1,0 +1,61 @@
+#!/bin/sh
+# ORVANTA live-session hardening. Runs inside the image chroot during 'lb build'.
+set -eu
+
+# Enable the default-deny inbound firewall (/etc/nftables.conf).
+systemctl enable nftables.service
+
+# The live user has the well-known live-config password and passwordless sudo,
+# so remote administration and file-sharing services must not listen by default.
+# They stay installed; an administrator can enable them explicitly.
+for unit in cockpit.socket cockpit.service smbd.service nmbd.service \
+            samba-ad-dc.service docker.service docker.socket containerd.service; do
+    if systemctl cat "$unit" >/dev/null 2>&1; then
+        systemctl disable "$unit" >/dev/null 2>&1 || true
+        systemctl mask "$unit"
+    fi
+done
+
+# Files ORVANTA adds through config/includes.chroot get root ownership and
+# 0644/0755 modes whatever the build checkout had (a umask of 002, or a tree
+# copied from a Windows drive, would otherwise ship them group/world-writable).
+for p in /etc/issue /etc/orvanta-release /etc/nftables.conf /etc/xdg/kdeglobals \
+         /etc/xdg/kcm-about-distrorc /etc/live/config.conf.d/orvanta.conf /etc/skel/.face \
+         /etc/sysctl.d/60-orvanta-hardening.conf \
+         /usr/share/color-schemes/OrvantaDark.colors \
+         /usr/share/icons/hicolor/scalable/apps/orvanta.svg \
+         /usr/share/plasma/look-and-feel/org.orvanta.desktop \
+         /usr/share/plasma/plasma-welcome/intro-customization.desktop \
+         /usr/share/wallpapers/Orvanta; do
+    [ -e "$p" ] || continue
+    chown -R root:root "$p"
+    find "$p" -type d -exec chmod 0755 {} +
+    find "$p" -type f -exec chmod 0644 {} +
+done
+# Their parent directories exist in Debian already; copying the includes must
+# not have loosened them.
+for d in /etc /etc/xdg /etc/sysctl.d /etc/live /etc/live/config.conf.d /etc/skel \
+         /usr /usr/share /usr/share/color-schemes \
+         /usr/share/icons /usr/share/icons/hicolor /usr/share/icons/hicolor/scalable \
+         /usr/share/icons/hicolor/scalable/apps /usr/share/plasma \
+         /usr/share/plasma/look-and-feel /usr/share/plasma/plasma-welcome /usr/share/wallpapers; do
+    [ -d "$d" ] && chmod go-w "$d"
+done
+# Fail the build if anything under /etc or /usr is world-writable (files, or
+# directories without the sticky bit).
+ww="$(find /etc /usr -xdev \( -type f -perm -0002 \) -o \( -type d -perm -0002 ! -perm -1000 \) 2>/dev/null | head -20)"
+if [ -n "$ww" ]; then
+    echo "world-writable files in the image:" >&2
+    echo "$ww" >&2
+    exit 1
+fi
+
+# Kernel network hardening (/etc/sysctl.d/60-orvanta-hardening.conf).
+grep -q '^net.ipv4.conf.all.accept_redirects = 0$' /etc/sysctl.d/60-orvanta-hardening.conf
+
+# Automatic upgrades are not activated in the live session (see README).
+cat > /etc/apt/apt.conf.d/20auto-upgrades <<'CONF'
+// ORVANTA 0.1 live image: automatic updates intentionally disabled.
+APT::Periodic::Update-Package-Lists "0";
+APT::Periodic::Unattended-Upgrade "0";
+CONF

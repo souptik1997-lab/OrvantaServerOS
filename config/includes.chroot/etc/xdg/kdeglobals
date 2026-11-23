@@ -1,0 +1,9 @@
+[KDE]
+LookAndFeelPackage=org.orvanta.desktop
+
+# Plasma's Firewall page only manages ufw or firewalld. ORVANTA's firewall is
+# nftables (/etc/nftables.conf), so that page would report "Firewall is
+# disabled" while the firewall is on. Hidden until ORVANTA has a firewall UI;
+# the ORVANTA Control Center shows the nftables status.
+[KDE Control Module Restrictions]
+kcm_firewall=false

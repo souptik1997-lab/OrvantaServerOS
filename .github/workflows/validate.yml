@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -11,37 +12,37 @@ permissions:
 jobs:
   static-and-package:
     runs-on: ubuntu-24.04
-    container: debian:trixie
+    container:
+      image: debian:trixie
+      # NET_ADMIN only for the container's own network namespace, so "nft -c"
+      # can validate the live firewall ruleset.
+      options: --cap-add=NET_ADMIN
     steps:
       - uses: actions/checkout@v4
       - name: Install validation dependencies
         run: |
           apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential debhelper devscripts desktop-file-utils live-build python3 python3-pyside6.qtwidgets shellcheck
-      - name: Validate shell syntax and style
-        run: |
-          sh -n auto/build auto/clean auto/config scripts/build.sh scripts/check-host.sh scripts/clean.sh
-          shellcheck auto/build auto/clean auto/config scripts/build.sh scripts/check-host.sh scripts/clean.sh
-      - name: Validate Python syntax
-        run: python3 -m py_compile orvanta-control-center/src/orvanta_control_center.py
-      - name: Validate desktop entry
-        run: desktop-file-validate orvanta-control-center/data/orvanta-control-center.desktop
-      - name: Validate live-build configuration
-        run: |
-          mkdir -p /tmp/orvanta-live
-          cp -a auto config /tmp/orvanta-live/
-          cd /tmp/orvanta-live
-          ./auto/config
-      - name: Verify Trixie package availability
-        run: |
-          grep -Ev '^[[:space:]]*(#|$)' config/package-lists/orvanta-desktop.list.chroot | xargs -r apt-get install --simulate --yes
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            build-essential ca-certificates debhelper debian-archive-keyring devscripts \
+            desktop-file-utils git grub-common librsvg2-bin lintian live-build nftables python3 \
+            python3-pyside6.qtwidgets shellcheck
+      - name: Static checks (shell, Python, unit tests, desktop entries, branding, GRUB, firewall, live-build config)
+        env:
+          ORVANTA_REQUIRE_NFT: "1"
+          ORVANTA_REQUIRE_BRANDING: "1"
+        run: ./scripts/validate.sh
+      - name: Verify Debian 13 package availability (main contrib non-free-firmware)
+        run: ./scripts/check-packages.sh
       - name: Build Control Center package
         run: |
           cd orvanta-control-center
           dpkg-checkbuilddeps
           dpkg-buildpackage --no-sign
+      - name: Lintian
+        run: lintian --pedantic --fail-on error,warning orvanta-control-center_*.changes
       - name: Install Control Center package
         run: |
-          apt-get install -y ./orvanta-control-center_*.deb
+          DEBIAN_FRONTEND=noninteractive apt-get install -y ./orvanta-control-center_*.deb
           test -x /usr/bin/orvanta-control-center
           dpkg-query -W -f='${Status}\n' orvanta-control-center | grep -qx 'install ok installed'
+          QT_QPA_PLATFORM=offscreen timeout 5 orvanta-control-center || [ $? -eq 124 ]

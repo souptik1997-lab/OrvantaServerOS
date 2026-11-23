@@ -1,0 +1,9 @@
+[Desktop Entry]
+# Read by Plasma Welcome (plasma-welcome 6.3) for the first page:
+# Name = intro text, Icon = image in place of the KDE mascot,
+# Comment = caption under the image, URL = where the image links to.
+Type=Link
+Name=Welcome to ORVANTA OS 0.1 (Foundation), a Debian 13 based desktop and server system. This is a live development image: nothing is installed on your computer, and remote administration and file sharing are switched off until you enable them.
+Comment=ORVANTA OS — Foundation Edition
+Icon=orvanta
+URL=https://github.com/souptik1997-lab/OrvantaServerOS

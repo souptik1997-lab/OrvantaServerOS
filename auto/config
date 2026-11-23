@@ -19,6 +19,6 @@ lb config noauto \
     --iso-application "ORVANTA OS" \
     --iso-publisher "ORVANTA Project" \
     --iso-volume "ORVANTA_0_1" \
-    --image-name "orvanta-0.1-amd64" \
+    --image-name "orvanta-0.1" \
     --bootappend-live "boot=live components hostname=orvanta username=orvanta locales=en_US.UTF-8 keyboard-layouts=us" \
     "${@}"

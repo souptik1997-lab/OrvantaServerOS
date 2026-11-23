@@ -1,4 +1,11 @@
 #!/bin/sh
 set -eu
+
 # 'noauto' prevents live-build from re-invoking this auto/build wrapper.
-lb build noauto "${@}" 2>&1 | tee build.log
+# POSIX sh has no portable 'pipefail', so capture lb's exit status explicitly;
+# otherwise a failed build would be reported as success by 'tee'.
+status_file="$(mktemp)"
+trap 'rm -f "$status_file"' EXIT
+{ rc=0; lb build noauto "${@}" 2>&1 || rc=$?; echo "$rc" > "$status_file"; } | tee build.log
+status="$(cat "$status_file")"
+exit "${status:-1}"

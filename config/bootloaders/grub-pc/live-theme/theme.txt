@@ -1,0 +1,52 @@
+# ORVANTA GRUB theme. The logo and name are part of splash.png (splash.svg).
+# @KEYMAP_SHORT@ and @TIMEOUT_NOTIFICATION_LONG@ are filled in by GRUB itself.
+desktop-image: "../splash.png"
+title-text: ""
+message-font: "Unifont Regular 16"
+message-color: "#ffffff"
+terminal-font: "Unifont Regular 16"
+
+#help bar at the bottom
++ label {
+        top = 100%-50
+        left = 0
+        width = 100%
+        height = 20
+        text = "@KEYMAP_SHORT@"
+        align = "center"
+        color = "#8fb4d9"
+        font = "Unifont Regular 16"
+}
+
+#boot menu
++ boot_menu {
+        left = 20%
+        width = 60%
+        top = 52%
+        height = 48%-100
+        item_color = "#9fb3c8"
+        item_font = "Unifont Regular 16"
+        selected_item_color = "#5ee7f5"
+        selected_item_font = "Unifont Regular 16"
+        item_height = 16
+        item_padding = 0
+        item_spacing = 6
+        icon_width = 0
+        icon_height = 0
+        item_icon_space = 0
+}
+
+#countdown
++ progress_bar {
+        id = "__timeout__"
+        left = 20%
+        top = 100%-80
+        height = 16
+        width = 60%
+        font = "Unifont Regular 16"
+        text_color = "#ffffff"
+        fg_color = "#1f8fd6"
+        bg_color = "#12345e"
+        border_color = "#2bb5c8"
+        text = "@TIMEOUT_NOTIFICATION_LONG@"
+}

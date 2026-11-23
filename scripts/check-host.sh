@@ -10,6 +10,7 @@ if [ ! -r /etc/os-release ]; then
     exit 1
 fi
 
+# shellcheck source=/dev/null
 . /etc/os-release
 printf 'Build host: %s %s\n' "${PRETTY_NAME:-unknown}" "${VERSION_CODENAME:-}"
 

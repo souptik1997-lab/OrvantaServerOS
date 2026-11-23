@@ -16,7 +16,7 @@ sudo apt-get install -y \
 echo
 echo "Checking project architecture..."
 dpkg --print-architecture
-cat /etc/os-release | sed -n '1,8p'
+sed -n '1,8p' /etc/os-release
 
 echo
 echo "Starting ORVANTA ISO build..."

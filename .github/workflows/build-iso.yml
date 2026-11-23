@@ -1,0 +1,133 @@
+name: Build ORVANTA ISO
+
+# Runs on pull requests that change build inputs, on pushes to main (the ISO
+# of the merged state), and manually.
+# The build runs in a privileged debian:trixie container on the runner host so
+# the host can first free disk space (a full build needs roughly 20 GB).
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'auto/**'
+      - 'config/**'
+      - 'orvanta-control-center/**'
+      - 'scripts/build.sh'
+      - 'scripts/check-host.sh'
+      - '.github/workflows/build-iso.yml'
+  pull_request:
+    paths:
+      - 'auto/**'
+      - 'config/**'
+      - 'orvanta-control-center/**'
+      - 'scripts/build.sh'
+      - 'scripts/check-host.sh'
+      - '.github/workflows/build-iso.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-iso-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  iso:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Free runner disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          sudo docker image prune --all --force >/dev/null
+          df -h /
+
+      - name: Build ISO in Debian 13 container
+        # An explicit 'shell: bash' makes Actions use -o pipefail; with the
+        # default shell, a failed build piped through tee would pass.
+        shell: bash
+        run: |
+          docker run --rm --privileged \
+            -v "$GITHUB_WORKSPACE:/src" -w /src \
+            debian:trixie sh -euc '
+              apt-get update
+              # Same tool set as the documented build host, including
+              # live-build Recommends (apt-utils, cpio, file, xz-utils, ...).
+              DEBIAN_FRONTEND=noninteractive apt-get install -y \
+                build-essential ca-certificates debhelper debian-archive-keyring debootstrap \
+                dosfstools git grub-efi-amd64-bin grub-pc-bin live-build mtools \
+                squashfs-tools sudo xorriso
+              git config --global --add safe.directory /src
+              ./scripts/build.sh
+            ' 2>&1 | tee ci-build.log
+
+      - name: Show result
+        if: always()
+        run: |
+          ls -la ./*.iso* ./*.packages 2>/dev/null || true
+          cat ./*.iso.sha256 2>/dev/null || true
+          df -h /
+
+      # Annotations are public via the API; publish the verified ISO facts.
+      - name: Publish ISO summary as annotation
+        if: success()
+        shell: bash
+        run: |
+          iso=orvanta-0.1-amd64.hybrid.iso
+          test -s "$iso"
+          sha256sum -c "$iso.sha256"
+          size=$(stat -c %s "$iso")
+          manifest=$(ls ./*.packages 2>/dev/null | head -1)
+          if [ -n "$manifest" ]; then
+            pkgs="$(wc -l < "$manifest") packages in $manifest"
+            cc=$(grep -E '^orvanta-control-center[[:space:]]' "$manifest" || echo 'orvanta-control-center MISSING')
+            kernel=$(grep -E '^linux-image-[0-9]' "$manifest" | head -1)
+          else
+            pkgs="no .packages manifest found"; cc=""; kernel=""
+          fi
+          ls -la ./*.iso* ./*.packages 2>/dev/null || true
+          echo "::notice title=ISO built::$iso size=$size bytes; $(cut -d' ' -f1 "$iso.sha256") sha256; $pkgs; $cc; $kernel"
+
+      # Annotations are readable without signing in (unlike raw job logs), so a
+      # failure can be diagnosed from the public API.
+      - name: Publish failure summary as annotation
+        if: failure()
+        run: |
+          log=build.log; [ -s "$log" ] || log=ci-build.log
+          [ -s "$log" ] || { echo "::error title=ISO build failed::no build log produced"; exit 0; }
+          {
+            echo "Last error-like lines in $log:"
+            grep -nE '^E: |[Ee]rror|[Ff]ailed|returned error|exit status' "$log" | tail -25 | cut -c1-220
+            echo "---- last 40 lines of $log ----"
+            tail -40 "$log" | cut -c1-220
+          } > summary.txt
+          msg=$(sed 's/%/%25/g; s/\r/%0D/g' summary.txt | awk 'BEGIN{ORS="%0A"} {print}')
+          echo "::error title=ISO build failed::$msg"
+
+      - name: Upload ISO
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: orvanta-0.1-amd64
+          path: |
+            orvanta-0.1-amd64.hybrid.iso
+            orvanta-0.1-amd64.hybrid.iso.sha256
+            ./*.packages
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: |
+            build.log
+            ci-build.log
+          if-no-files-found: ignore
+          retention-days: 7
